@@ -712,9 +712,10 @@ def chaldeas_card(data, P):
             cells_svg.append(box(cx, np_y - 11, 9.5, 13, P["subtle"], 1.5))
             cells_svg.append(f'<rect class="np-last" x="{cx:g}" y="{np_y - 11:g}" width="9.5" height="13" rx="1.5" fill="{P["gold"]}"/>')
 
+    master = escape(shorten(profile.get("御主名", OWNER), 18))
     lv = escape(shorten(profile["御主等级"], 5))
     ssr = escape(shorten(profile["五星从者"], 5))
-    fav = escape(shorten(profile["最推从者"], 14))
+    fav = shorten(profile["最推从者"], 14)
     join_note = escape(shorten(profile["入坑备注"], 14))
 
     body = [
@@ -723,13 +724,11 @@ def chaldeas_card(data, P):
         *viewport,
         tx(kx, 76, "master", 13.5, P["cyan"], 'class="bold"'),
         f'<text x="{vx_r}" y="76" font-size="13.5">'
-        f'<tspan fill="{P["text"]}">{OWNER}</tspan>'
+        f'<tspan fill="{P["fgo_master"]}" class="bold">{master}</tspan>'
         f'<tspan fill="{P["dim"]}"> · </tspan>'
         f'<tspan fill="{P["gold"]}" class="bold">Lv.{lv} · {ssr}★5</tspan></text>',
         tx(kx, 100, "favorite", 13.5, P["cyan"], 'class="bold"'),
-        f'<text x="{vx_r}" y="100" font-size="13.5">'
-        f'<tspan fill="{P["text"]}" class="bold">{fav}</tspan>'
-        f'<tspan fill="{P["muted"]}" font-size="12.5">  (看板娘: 阿尔托莉雅)</tspan></text>',
+        tx(vx_r, 100, fav, 13.5, P["text"], 'class="bold"'),
         tx(kx, 124, "joined", 13.5, P["cyan"], 'class="bold"'),
         f'<text x="{vx_r}" y="124" font-size="13.5">'
         f'<tspan fill="{P["gold"]}">{joined:%Y-%m-%d} · Day {elapsed:,}</tspan>'

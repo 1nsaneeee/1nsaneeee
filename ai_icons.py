@@ -1,7 +1,7 @@
 """Official brand ASCII-art portraits & smooth terminal animations for neofetch.
 
 Sampled directly from official @lobehub/icons 24x24 SVGs onto upright monospace grids:
-  0. MEOW         - Pixel CRT monitor cat with glancing pupils & scanline
+  0. MEOW         - ASCII CRT monitor cat with glancing pupils & scanline
   1. GEMINI       - Official Google Gemini 4-color ASCII star, breathing pulse + ASCII sparkles
   2. OPENAI       - Official OpenAI 6-fold knot, 8-frame upright ASCII shader spin (0..60deg seamless)
   3. CLAUDE / 403 - Official Claude #D97757 ASCII starburst + RGB chromatic glitch & HTTP 403 pill
@@ -285,13 +285,13 @@ def _box(x, y, w, h, fill, r=0, stroke=None):
     return f'<rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" rx="{r}" fill="{fill}"{edge}/>'
 
 
-def _ascii_grid(rows, pitch=4.6, step=6.2, font_size=7.4, cx=CX, cy=CY, bed_opacity=0.22):
+def _ascii_grid(rows, pitch=4.6, step=6.2, font_size=7.4, cx=CX, cy=CY, bed_opacity=0.22, columns=None):
     """Render upright monospace ASCII rows + optional subtle pixel bed, inheriting fill from parent.
 
     Each non-space token is positioned as an individual <tspan> at exact grid x coordinates so
     SVG renderers (including Chromium <use> shadow trees) can NEVER collapse internal spaces.
     """
-    width = max((len(r.rstrip()) for r in rows), default=0)
+    width = columns if columns is not None else max((len(r.rstrip()) for r in rows), default=0)
     x0 = cx - (width * pitch) / 2.0
     y0 = cy - (len(rows) * step) / 2.0
     bed = []
@@ -332,28 +332,57 @@ def _ascii_grid(rows, pitch=4.6, step=6.2, font_size=7.4, cx=CX, cy=CY, bed_opac
     return "".join(parts)
 
 
-def computer_cat(P):
-    """Pixel-art CRT monitor cat (MEOW)."""
-    def shape(d, fill):
-        return f'<path d="{d}" fill="{fill}"/>'
+# All masks share the old 192 × 160 monitor coordinate system. Spaces are unlit phosphor.
+MEOW_ASCII = (
+    "",
+    "",
+    "      ##                                ##",
+    "      ####                            ####",
+    "      ##/###                        ###/##",
+    "      ##//###                      ###//##",
+    "      ##////###                  ###////##",
+    "      ####################################",
+    "      ====================================",
+    "     ======================================",
+    "    #==::::::::::::::::::::::::::::::::::==#",
+    "    #==:  +++++++                       :==#",
+    "    #==: +                              :==#",
+    "    #==: +                              :==#",
+    "    #==: +    oooooo         oooooo     :==#",
+    "    #==:     o  @@  o       o  @@  o    :==#",
+    "    #==:     o  @@  o       o  @@  o    :==#",
+    "  -----:      oooooo         oooooo     :-----",
+    "    #==:               vv               :==#",
+    " ------:            \\_ww_/              :------",
+    "    #==:                                :==#",
+    "    #==:                                :==#",
+    "    #==:                                :==#",
+    "    #==::::::::::::::::::::::::::::::::::==#",
+    "    #======================================#",
+    "      ##  +++++                   *    ###",
+    "      ####################################",
+    "                    ########",
+    "                    ########",
+    "                ###############",
+    "             ______________________",
+    "",
+)
 
-    return "".join([
-        shape("M24 49V8h9v7h9v7h9v7h9v6h72v-6h9v-7h9v-7h9V8h9v41h8v78h-8v9H24v-9h-8V49z", P["cat_body"]),
-        shape("M32 37V22h6v7h8v8zm116 0h12V22h-5v7h-7z", P["cyan"]),
-        _box(21, 42, 150, 84, P["cat_bezel"], 5),
-        _box(27, 48, 138, 71, P["cat_inner"], 4),
-        _box(32, 53, 128, 60, P["cat_screen"], 3),
-        shape("M37 57h32v3H40v20h-3z", P["cat_glare"]),
-        shape("M50 74h7v-5h23v5h4v16H50zm60 0h5v-5h23v5h5v16h-33z", P["mint"]),
-        '<g class="pupils">' + shape("M67 73h7v13h-7zm60 0h7v13h-7z", P["cat_pupil"]) + "</g>",
-        shape("M90 88h13v4h-4v4h-5v-4h-4z", P["gold"]),
-        shape("M83 95h4v4h7v-3h5v3h8v-4h4v7h-10v-2h-8v2H83z", P["cat_bezel"]),
-        shape("M7 83h20v4H7zm-5 13h23v4H2zm161-13h21v4h-21zm2 13h23v4h-23z", P["cyan"]),
-        _box(34, 129, 31, 2, P["cat_slot"]),
-        f'<rect class="cat-led" x="151" y="127" width="7" height="4" rx="1" fill="{P["mint"]}"/>',
-        shape("M81 136h29v9h15v6H65v-6h16z", P["cat_body"]),
-        _box(52, 151, 90, 4, P["cat_stand"]),
-    ])
+
+def computer_cat(P):
+    layers = [
+        ("#", "cat_body", ""), ("=:", "cat_bezel", ""), ("/-", "cyan", ""),
+        ("+", "cat_slot", ""), ("o", "mint", ""), ("@", "mint", "pupils"),
+        ("v", "gold", ""), ("\\w_", "cat_bezel", ""), ("*", "mint", "cat-led"),
+    ]
+    parts = []
+    for glyphs, color, motion in layers:
+        mask = ["".join(c if c in glyphs else " " for c in row) for row in MEOW_ASCII]
+        ink = _ascii_grid(mask, pitch=4, step=5, font_size=6.2, cx=96, cy=80,
+                          bed_opacity=0, columns=48)
+        animation = f' class="{motion}"' if motion else ""
+        parts.append(f'<g{animation} fill="{P[color]}">{ink}</g>')
+    return "".join(parts)
 
 
 def gemini_art(P):
@@ -491,7 +520,7 @@ def build_mascot(P, x=24, y=22, w=268, h=242):
         )
         parts.append(f'<g transform="translate({px:g} {py:g})"><use href="#portrait-{name}"/>')
         if name == "meow":
-            parts.append(f'<rect class="crt-line" x="34" y="55" width="122" height="1.5" fill="{P["mint"]}"/>')
+            parts.append(f'<text class="crt-line" x="34" y="56" font-size="5.5" textLength="122" lengthAdjust="spacingAndGlyphs" fill="{P["mint"]}">................................</text>')
         parts.append("</g>")
         for j in range(4):
             parts.append(_box(dots_x0 + j * 20, dots_y, 14, 3.2, color if i == j else P["border"], 1.6))
