@@ -20,22 +20,14 @@
   <img alt="neofetch · Tom Chou &amp; AI Agents" src="./assets/terminal/neofetch-light.svg" width="100%">
 </picture>
 
-</div>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/terminal/projects-dark.svg">
+  <img alt="tree -L 1 ~/projects --featured" src="./assets/terminal/projects-light.svg" width="100%">
+</picture>
 
-### `➜ ~/projects` · Featured Builds
+<sub><code>cd ~/projects</code> · <a href="https://github.com/1nsaneeee/agentinminecraft">agentinminecraft</a> · <a href="https://github.com/1nsaneeee/OpenJarvis">OpenJarvis</a> · <a href="https://github.com/1nsaneeee/ftb-quests-preview">ftb-quests-preview</a> · <a href="https://github.com/1nsaneeee/fgo-np-calculator">fgo-np-calculator</a> (<a href="https://1nsaneeee.github.io/fgo-np-calculator/">Demo</a>) · <a href="https://github.com/1nsaneeee/url-to-markdown">url-to-markdown</a> · <a href="https://github.com/1nsaneeee/Programming-Carrier">Programming-Carrier</a> · <a href="https://github.com/1nsaneeee/pixart-pixel-tool">pixart-pixel-tool</a> (<a href="https://1nsaneeee.github.io/pixart-pixel-tool/">Demo</a>) · <a href="https://github.com/1nsaneeee/doc-router">doc-router</a></sub>
 
-| Project | What it does | Stack | Links |
-| :--- | :--- | :--- | :--- |
-| **[agentinminecraft](https://github.com/1nsaneeee/agentinminecraft)** | NeoForge 1.21.1 Mod：MCP（35 工具）+ WebSocket 桥接，给 AI Agent 一具能在 MC 里走路、挖矿、造世界、聊天的真实玩家身体 | `Java` `MCP` | [Repo](https://github.com/1nsaneeee/agentinminecraft) |
-| **[OpenJarvis](https://github.com/1nsaneeee/OpenJarvis)** | 本地优先、模型无关的开源桌面语音 AI 助手框架（唤醒词 → ASR → LLM → MCP 工具执行） | `Python` `MCP` | [Repo](https://github.com/1nsaneeee/OpenJarvis) |
-| **[ftb-quests-preview](https://github.com/1nsaneeee/ftb-quests-preview)** | 本地 FTB Quests 任务书可视化预览编辑器 + Headless CLI（节点拖拽、格式码补全、AI JSON Patch） | `JS` `CLI` | [Repo](https://github.com/1nsaneeee/ftb-quests-preview) |
-| **[fgo-np-calculator](https://github.com/1nsaneeee/fgo-np-calculator)** | FGO 宝具伤害计算器 v2.0：伤害区间、NP 回收、三回合周回连发试算 | `JS` `Web` | [Repo](https://github.com/1nsaneeee/fgo-np-calculator) · [**Demo**](https://1nsaneeee.github.io/fgo-np-calculator/) |
-| **[url-to-markdown](https://github.com/1nsaneeee/url-to-markdown)** | VS Code 扩展：输入网址智能提取正文（Readability）并转换为干净的 Markdown | `TS` `VS Code` | [Repo](https://github.com/1nsaneeee/url-to-markdown) |
-| **[Programming-Carrier](https://github.com/1nsaneeee/Programming-Carrier)** | Unity 2D 类银河战士恶魔城 RPG 毕业设计（战斗、探索、技能系统） | `C#` `Unity` | [Repo](https://github.com/1nsaneeee/Programming-Carrier) |
-| **[pixart-pixel-tool](https://github.com/1nsaneeee/pixart-pixel-tool)** | 24×24 像素画参照工具：图片转 40 色限定像素网格，零依赖单文件 | `JS` `Canvas` | [Repo](https://github.com/1nsaneeee/pixart-pixel-tool) · [**Demo**](https://1nsaneeee.github.io/pixart-pixel-tool/) |
-| **[doc-router](https://github.com/1nsaneeee/doc-router)** | Agent Skill：Context7 + `llms.txt` 文档检索路由管线 | `PS1` `Skill` | [Repo](https://github.com/1nsaneeee/doc-router) |
-
-<div align="center">
+<br/><br/>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/terminal/skills-dark.svg">
@@ -47,12 +39,12 @@
   <img alt="TypeScript, JavaScript, Java, Python, C#, Unity, Node.js, VS Code, Git, GitHub" src="https://skillicons.dev/icons?i=ts,js,java,py,cs,unity,nodejs,vscode,git,github&amp;theme=light">
 </picture>
 
-<br/>
+<br/><br/>
 
 <a href="https://1nsaneeee.github.io/fgo-np-calculator/">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/terminal/chaldeas-dark.svg">
-  <img alt="迦勒底御主档案 · FGO Master File" src="./assets/terminal/chaldeas-light.svg" width="100%">
+  <img alt="fgo-fetch · 迦勒底御主档案" src="./assets/terminal/chaldeas-light.svg" width="100%">
 </picture>
 </a>
 
@@ -63,7 +55,7 @@
 <a href="https://github.com/1nsaneeee/ftb-quests-preview">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/terminal/minecraft-dark.svg">
-  <img alt="Minecraft 科技水槽包任务手册" src="./assets/terminal/minecraft-light.svg" width="100%">
+  <img alt="mc-fetch · Minecraft 科技水槽包任务手册" src="./assets/terminal/minecraft-light.svg" width="100%">
 </picture>
 </a>
 

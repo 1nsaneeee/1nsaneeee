@@ -1,28 +1,71 @@
-"""Rebuilt crisp terminal-art portraits & smooth animations for neofetch.
+"""Official brand SVG portraits & smooth terminal animations for neofetch.
 
 Channels (190 x 157 local coordinate space, center = (95, 78.5)):
   0. MEOW         — Pixel CRT monitor cat with glancing pupils & scanline
-  1. GEMINI       — Crisp geometric 4-point astroid sparkle + scanlines, smooth breathing pulse
-  2. OPENAI       — Exact 6-fold rotational hexagonal knot, seamless 0->60deg continuous spin
-  3. CLAUDE / 403 — 12-ray Anthropic starburst + crisp RGB chromatic glitch & HTTP 403 stamp
+  1. GEMINI       — Official Google Gemini 4-color path, smooth breathing pulse
+  2. OPENAI       — Official OpenAI 6-fold knot path, seamless 0->60deg continuous spin
+  3. CLAUDE / 403 — Official Claude starburst path (#D97757) + RGB glitch & HTTP 403 badge
 """
-from math import atan2, cos, degrees, radians, sin, sqrt
-
 
 CX, CY = 95.0, 78.5
+
+# Exact official 24x24 paths from @lobehub/icons
+GEMINI_D = (
+    "M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452"
+    ".503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001"
+    "c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677"
+    "a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0"
+    "c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678"
+    ".503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"
+)
+
+OPENAI_D = (
+    "M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 "
+    "2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0"
+    "l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118"
+    "a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163z"
+    "M7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 "
+    "1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898z"
+    "M12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128z"
+    "m1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898"
+    "l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472z"
+    "m-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423"
+    "c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0z"
+    "m-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71"
+    "c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616"
+    "c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756"
+    "C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 "
+    "0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0"
+    "a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448"
+    "-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309"
+    "a5.96 5.96 0 004.162 1.713z"
+)
+
+CLAUDE_D = (
+    "M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122"
+    "-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389"
+    "l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462"
+    "-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103"
+    ".019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729"
+    "L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832"
+    ".091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685"
+    "-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82"
+    ".85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36"
+    ".073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486"
+    "-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638"
+    "-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81"
+    " 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17"
+    "l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167"
+    "-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924"
+    ".315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164"
+    "-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56"
+    "l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"
+)
 
 
 def _box(x, y, w, h, fill, r=0, stroke=None):
     edge = f' stroke="{stroke}"' if stroke else ""
     return f'<rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" rx="{r}" fill="{fill}"{edge}/>'
-
-
-def _scanline_pattern(pid, P):
-    return (
-        f'<pattern id="{pid}" width="4" height="3" patternUnits="userSpaceOnUse">'
-        f'<path d="M0 2.4H4" stroke="{P["scan_stroke"]}" stroke-opacity="{P["scan_op"]}" stroke-width="0.9"/>'
-        f"</pattern>"
-    )
 
 
 def computer_cat(P):
@@ -49,183 +92,52 @@ def computer_cat(P):
     ])
 
 
-def _sparkle_path(cx, cy, r, k=0.76):
-    """Smooth 4-point Gemini astroid centered at (cx, cy) with radius r."""
-    c = r * k
-    return (
-        f"M{cx:.2f} {cy - r:.2f}"
-        f" C{cx:.2f} {cy - r + c:.2f} {cx + r - c:.2f} {cy:.2f} {cx + r:.2f} {cy:.2f}"
-        f" C{cx + r - c:.2f} {cy:.2f} {cx:.2f} {cy + r - c:.2f} {cx:.2f} {cy + r:.2f}"
-        f" C{cx:.2f} {cy + r - c:.2f} {cx - r + c:.2f} {cy:.2f} {cx - r:.2f} {cy:.2f}"
-        f" C{cx - r + c:.2f} {cy:.2f} {cx:.2f} {cy - r + c:.2f} {cx:.2f} {cy - r:.2f}Z"
-    )
-
-
 def gemini_art(P):
-    """Crisp vector-geometric Gemini 4-point star with terminal scanlines & ambient sparkles."""
-    main = _sparkle_path(CX, CY, 59, 0.70)
-    inner = _sparkle_path(CX, CY, 25, 0.66)
-    mini1 = _sparkle_path(147, 29, 10.5, 0.70)
-    mini2 = _sparkle_path(42, 127, 8.0, 0.70)
-    mini3 = _sparkle_path(149, 125, 5.5, 0.70)
+    """Exact official Google Gemini 4-color icon with smooth breathing pulse & twinkling mini stars."""
+    # Scale 24x24 -> 112x112 centered at (95, 78.5)
+    s = 4.75
     return "".join([
-        f'<circle class="gemini-ring" cx="{CX:g}" cy="{CY:g}" r="48" fill="none" stroke="{P["mint"]}" stroke-width="1.3" stroke-dasharray="3 4"/>',
+        f'<circle class="gemini-ring" cx="{CX:g}" cy="{CY:g}" r="48" fill="none" stroke="#3186FF" stroke-width="1.2" stroke-dasharray="3 4"/>',
         f'<g class="gemini-core">',
-        f'<path d="{main}" fill="url(#gem-grad)"/>',
-        f'<path d="{main}" fill="url(#icon-scan)"/>',
-        f'<path d="{inner}" fill="{P["bg"]}" opacity="0.22"/>',
-        f'<path d="{main}" fill="none" stroke="{P["mint"]}" stroke-opacity="0.45" stroke-width="1"/>',
-        "</g>",
-        f'<path class="gem-twinkle-1" d="{mini1}" fill="{P["cyan"]}"/>',
-        f'<path class="gem-twinkle-2" d="{mini2}" fill="{P["mint"]}"/>',
-        f'<path class="gem-twinkle-3" d="{mini3}" fill="{P["gold"]}"/>',
+        f'<g transform="translate({CX:g} {CY:g}) scale({s}) translate(-12 -12)">',
+        f'<path d="{GEMINI_D}" fill="#3186FF"/>',
+        f'<path d="{GEMINI_D}" fill="url(#gem-g0)"/>',
+        f'<path d="{GEMINI_D}" fill="url(#gem-g1)"/>',
+        f'<path d="{GEMINI_D}" fill="url(#gem-g2)"/>',
+        "</g></g>",
+        # Subtle companion sparkles using exact scaled Gemini silhouette
+        f'<g class="gem-twinkle-1" transform="translate(148 30) scale(0.85) translate(-12 -12)"><path d="{GEMINI_D}" fill="#3186FF"/></g>',
+        f'<g class="gem-twinkle-2" transform="translate(42 126) scale(0.65) translate(-12 -12)"><path d="{GEMINI_D}" fill="#08B962"/></g>',
+        f'<g class="gem-twinkle-3" transform="translate(148 124) scale(0.5) translate(-12 -12)"><path d="{GEMINI_D}" fill="#FABC12"/></g>',
     ])
 
 
-def _openai_petal_path():
-    """Generate one exact OpenAI hexagonal blossom petal; 6x 60deg rotation forms the exact knot.
-
-    Geometry around origin (0, 0):
-      - Inner hexagon apothem a = 14.0 -> vertex radius h = 2a / sqrt(3) ≈ 16.166
-      - Straight spoke starts at inner hex vertex V0, runs along edge V0->V1 (120deg)
-        for length L, then curves clockwise in a circular arc of radius R that lands
-        cleanly on the outer tangent of the next petal.
-    """
-    a = 13.8
-    h = 2.0 * a / sqrt(3.0)
-    # Place lobe center C0 so the circle of radius R is tangent to line L0 (normal at 30deg, offset a)
-    # and intersects the neighboring circle C5 smoothly.
-    R = 23.0
-    # C0 = (dx, dy) in frame rotated by 30deg (n0 = x', u0 = y'):
-    # Since circle is tangent to L0 on the +n0 side: x' = a + R.
-    # Choose y' (along u0 from midpoint of V0-V1) so the 6 lobes form a tight, balanced blossom.
-    xp = a + R
-    yp = 10.5
-    c30, s30 = cos(radians(30)), sin(radians(30))
-    # n0 = (c30, s30), u0 = (-s30, c30)
-    cx0 = xp * c30 - yp * s30
-    cy0 = xp * s30 + yp * c30
-
-    # Tangent point on line L0 (at x'=a, y'=yp):
-    tx0 = a * c30 - yp * s30
-    ty0 = a * s30 + yp * c30
-
-    # Start of straight spoke: inner hexagon vertex V0 = (h, 0) -> x'=a, y'=-h/2
-    vx0, vy0 = h, 0.0
-
-    # Find exact intersection between this circle (cx0, cy0, R) and the next rotated straight spoke L5
-    # Wait: in OpenAI's logo, the arc curves clockwise from (tx0, ty0) around (cx0, cy0)
-    # until it meets the straight spoke of petal k=5 (rotated -60deg) OR the outer arc of petal k=5!
-    # Compute intersection with spoke k=5 (line with normal at -30deg, offset a):
-    # Dot(P, n5) = a where P = C0 + R*(cos t, sin t)
-    # n5 = (cos(-30), sin(-30)) = (c30, -s30)
-    # dot(C0, n5) + R * cos(t + 30deg) = a  =>  cos(t + 30deg) = (a - dot(C0, n5)) / R
-    dot_c_n5 = cx0 * c30 - cy0 * s30
-    # We want the arc going clockwise (decreasing angle in standard math, increasing in SVG Y-down?
-    # Note: in SVG Y points DOWN, so standard (cos t, sin t) increases CLOCKWISE!).
-    # Wait: let's compute tangent angle at T0 relative to C0:
-    # T0 - C0 = (-R * c30, -R * s30) -> angle = 210deg (in SVG Y-down: left-up)
-    # Moving from V0=(h,0) toward T0=(tx0,ty0): direction is u0=(-0.5, +0.866) (down-left in SVG).
-    # At T0, the center C0 is to the RIGHT of direction u0 (since T0->C0 is +n0 = (+0.866, +0.5),
-    # cross product u0 x n0 = (-0.5)(0.5) - (0.866)(0.866) = -1 < 0 -> C0 is to the LEFT in Y-down,
-    # i.e. curving COUNTER-CLOCKWISE in SVG Y-down = sweep-flag 0!).
-    # Let's check exact intersection with neighboring circle C5 (C0 rotated by -60deg):
-    c60, s60 = 0.5, sqrt(3.0) / 2.0
-    # Rotate C0 by -60deg:
-    cx5 = cx0 * c60 + cy0 * s60
-    cy5 = -cx0 * s60 + cy0 * c60
-    # Distance between C0 and C5:
-    dx, dy = cx5 - cx0, cy5 - cy0
-    dist = sqrt(dx * dx + dy * dy)
-    # Midpoint + perpendicular offset to outer intersection of two equal-radius R circles:
-    half = dist / 2.0
-    perp = sqrt(max(0.0, R * R - half * half))
-    mx, my = (cx0 + cx5) / 2.0, (cy0 + cy5) / 2.0
-    # Two intersection points: pick the one FARTHER from origin (outer notch between lobes!)
-    ux, uy = -dy / dist, dx / dist
-    p1 = (mx + perp * ux, my + perp * uy)
-    p2 = (mx - perp * ux, my - perp * uy)
-    ex, ey = p1 if (p1[0] ** 2 + p1[1] ** 2) > (p2[0] ** 2 + p2[1] ** 2) else p2
-
-    # Check arc sweep angle (large-arc-flag):
-    # Vector from C0 to T0 vs C0 to E:
-    a_start = atan2(ty0 - cy0, tx0 - cx0)
-    a_end = atan2(ey - cy0, ex - cx0)
-    # Going sweep=0 (decreasing angle in SVG Y-down):
-    delta = (a_start - a_end) % (2.0 * 3.141592653589793)
-    large_arc = 1 if delta > 3.141592653589793 else 0
-
-    return (
-        f"M{vx0:.2f} {vy0:.2f}"
-        f" L{tx0:.2f} {ty0:.2f}"
-        f" A{R:.2f} {R:.2f} 0 {large_arc} 0 {ex:.2f} {ey:.2f}"
-    )
-
-
 def openai_art(P):
-    """Mathematically exact 6-fold OpenAI knot with seamless 0->60deg continuous rotation."""
-    petal = _openai_petal_path()
-    rotors = "".join(
-        f'<path d="{petal}" transform="rotate({k * 60})"/>' for k in range(6)
-    )
+    """Exact official OpenAI 6-fold knot with 100% seamless 0->60deg continuous spin."""
+    # Exact center of official 24x24 OpenAI knot is (12.0, 12.0); scale 4.5 -> 108px
+    s = 4.5
+    fill = "#e6edf3" if P["name"] == "dark" else "#1f2328"
     return "".join([
         f'<g class="openai-rotor">',
-        f'<g transform="translate({CX:g} {CY:g})">',
-        # Soft outer glow ring
-        f'<g fill="none" stroke="{P["cyan"]}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" opacity="0.14">{rotors}</g>',
-        # Crisp main blossom knot
-        f'<g fill="none" stroke="url(#oai-grad)" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round">{rotors}</g>',
-        # Subtle terminal scanline texture on top of the strokes
-        f'<g fill="none" stroke="url(#icon-scan)" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round">{rotors}</g>',
+        f'<g transform="translate({CX:g} {CY:g}) scale({s}) translate(-12 -12)">',
+        f'<path d="{OPENAI_D}" fill="{P["cyan"]}" fill-rule="evenodd" opacity="0.18" transform="scale(1.06)" transform-origin="12 12"/>',
+        f'<path d="{OPENAI_D}" fill="{fill}" fill-rule="evenodd"/>',
         "</g></g>",
     ])
 
 
-def _claude_starburst_paths(cx, cy):
-    """Crisp 12-ray Anthropic/Claude starburst geometry centered at (cx, cy)."""
-    # Authentic slightly organic alternating ray lengths & widths
-    rays = [
-        (0, 44, 5.2),
-        (29, 39, 4.6),
-        (58, 45, 5.0),
-        (89, 41, 4.8),
-        (119, 46, 5.2),
-        (150, 38, 4.5),
-        (181, 45, 5.2),
-        (210, 40, 4.6),
-        (240, 46, 5.0),
-        (271, 39, 4.7),
-        (301, 44, 5.1),
-        (331, 41, 4.6),
-    ]
-    parts = [f'<circle cx="{cx:g}" cy="{cy:g}" r="11.5"/>']
-    for deg, length, width in rays:
-        rad = radians(deg)
-        x2 = cx + length * cos(rad)
-        y2 = cy + length * sin(rad)
-        parts.append(
-            f'<line x1="{cx:g}" y1="{cy:g}" x2="{x2:.2f}" y2="{y2:.2f}" '
-            f'stroke-width="{width:.1f}" stroke-linecap="round"/>'
-        )
-    return "".join(parts)
-
-
 def claude_art(P):
-    """Crisp 12-ray Claude starburst + authentic RGB chromatic glitch + HTTP 403 stamp."""
-    cy = 67.0
-    burst = _claude_starburst_paths(CX, cy)
+    """Exact official Claude starburst (#D97757) with RGB chromatic glitch + HTTP 403 pill."""
+    cy = 65.0
+    s = 4.15
+    tr = f"translate({CX:g} {cy:g}) scale({s}) translate(-12 -12)"
+    brand = "#D97757"
     return "".join([
-        # Chromatic aberration ghost layers (only pop during short glitch bursts)
-        f'<g class="claude-ghost-c" fill="{P["cyan"]}" stroke="{P["cyan"]}">{burst}</g>',
-        f'<g class="claude-ghost-r" fill="{P["red"]}" stroke="{P["red"]}">{burst}</g>',
-        # Primary starburst
-        f'<g class="claude-core" fill="{P["red"]}" stroke="{P["red"]}">{burst}</g>',
-        # Crisp horizontal glitch tear slices
-        f'<g clip-path="url(#claude-tear-a)"><g class="claude-slice-a" fill="{P["red"]}" stroke="{P["red"]}">{burst}</g></g>',
-        f'<g clip-path="url(#claude-tear-b)"><g class="claude-slice-b" fill="{P["cyan"]}" stroke="{P["cyan"]}">{burst}</g></g>',
-        # Scanline grain over starburst
-        f'<g fill="url(#icon-scan)" stroke="url(#icon-scan)" opacity="0.65">{burst}</g>',
-        # Crisp HTTP 403 terminal badge below starburst
+        f'<g class="claude-ghost-c"><g transform="{tr}"><path d="{CLAUDE_D}" fill="{P["cyan"]}"/></g></g>',
+        f'<g class="claude-ghost-r"><g transform="{tr}"><path d="{CLAUDE_D}" fill="{P["red"]}"/></g></g>',
+        f'<g class="claude-core"><g transform="{tr}"><path d="{CLAUDE_D}" fill="{brand}"/></g></g>',
+        f'<g clip-path="url(#claude-tear-a)"><g class="claude-slice-a"><g transform="{tr}"><path d="{CLAUDE_D}" fill="{brand}"/></g></g></g>',
+        f'<g clip-path="url(#claude-tear-b)"><g class="claude-slice-b"><g transform="{tr}"><path d="{CLAUDE_D}" fill="{P["cyan"]}"/></g></g></g>',
         f'<g class="claude-badge">',
         _box(27, 126, 136, 22, P["pill_red_bg"], 4, P["pill_red_bd"]),
         f'<text x="{CX:g}" y="141" font-size="11" fill="{P["red"]}" text-anchor="middle" class="bold">HTTP 403 · BANNED</text>',
@@ -261,13 +173,13 @@ PORTRAIT_CSS = """
 @keyframes crt-pass{0%,10%{opacity:0;transform:translateY(0)}18%{opacity:.5}68%,100%{opacity:0;transform:translateY(56px)}}
 @keyframes led-pulse{0%,100%{opacity:1}50%{opacity:.45}}
 @keyframes glance{0%,66%,89%,100%{transform:translateX(0)}72%,83%{transform:translateX(5px)}}
-@keyframes gem-breathe{0%,100%{transform:scale(.93)}50%{transform:scale(1.04)}}
-@keyframes gem-wave{0%{transform:scale(.76);opacity:.48}75%,100%{transform:scale(1.26);opacity:0}}
-@keyframes twinkle-a{0%,100%{opacity:.3}50%{opacity:1}}
+@keyframes gem-breathe{0%,100%{transform:scale(.94)}50%{transform:scale(1.04)}}
+@keyframes gem-wave{0%{transform:scale(.78);opacity:.42}75%,100%{transform:scale(1.26);opacity:0}}
+@keyframes twinkle-a{0%,100%{opacity:.28}50%{opacity:1}}
 @keyframes oai-spin{from{transform:rotate(0deg)}to{transform:rotate(60deg)}}
 @keyframes cl-flicker{0%,29%,35%,67%,73%,100%{opacity:1}31%,69%{opacity:.78}}
-@keyframes cl-rgb-c{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}29%,67%{opacity:.65;transform:translateX(-4px)}32%,70%{opacity:.45;transform:translateX(2.5px)}}
-@keyframes cl-rgb-r{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}29%,67%{opacity:.65;transform:translateX(4px)}32%,70%{opacity:.45;transform:translateX(-2.5px)}}
+@keyframes cl-rgb-c{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}29%,67%{opacity:.6;transform:translateX(-4px)}32%,70%{opacity:.4;transform:translateX(2.5px)}}
+@keyframes cl-rgb-r{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}29%,67%{opacity:.6;transform:translateX(4px)}32%,70%{opacity:.4;transform:translateX(-2.5px)}}
 @keyframes cl-tear-a{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}30%,68%{opacity:.95;transform:translateX(6px)}33%,71%{opacity:.95;transform:translateX(-4px)}}
 @keyframes cl-tear-b{0%,28%,35%,66%,73%,100%{opacity:0;transform:translateX(0)}30%,68%{opacity:.9;transform:translateX(-5px)}33%,71%{opacity:.9;transform:translateX(3px)}}
 @keyframes cl-badge{0%,29%,34%,67%,72%,100%{opacity:1}31%,69%{opacity:.35}}
@@ -275,42 +187,38 @@ PORTRAIT_CSS = """
 """
 
 
-def build_mascot(P, x=24, y=64, w=268, h=242):
+def build_mascot(P, x=24, y=22, w=268, h=242):
     """Render the 4-channel animated viewport for neofetch."""
     portraits = [
         ("meow", "CH 01 · MEOW", P["mint"], computer_cat(P)),
-        ("gemini", "CH 02 · GEMINI", P["mint"], gemini_art(P)),
+        ("gemini", "CH 02 · GEMINI", "#3186FF", gemini_art(P)),
         ("openai", "CH 03 · OPENAI", P["cyan"], openai_art(P)),
-        ("claude", "CH 04 · CLAUDE 403", P["red"], claude_art(P)),
+        ("claude", "CH 04 · CLAUDE 403", "#D97757", claude_art(P)),
     ]
     parts = [
         _box(x, y, w, h, P["panel"], 8, P["border"]),
-        # Subtle corner ticks for CRT viewport polish
         f'<path d="M{x+10} {y+1}h-4a5 5 0 0 0-5 5v4 M{x+w-10} {y+1}h4a5 5 0 0 1 5 5v4" fill="none" stroke="{P["muted"]}" stroke-opacity="0.35" stroke-width="1"/>',
         "<defs>",
-        _scanline_pattern("icon-scan", P),
-        f'<linearGradient id="gem-grad" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0%" stop-color="{P["mint"]}"/>'
-        f'<stop offset="55%" stop-color="{P["cyan"]}"/>'
-        f'<stop offset="100%" stop-color="{P["mauve"]}"/></linearGradient>',
-        f'<linearGradient id="oai-grad" x1="0" y1="0" x2="1" y2="1">'
-        f'<stop offset="0%" stop-color="{P["cyan"]}"/>'
-        f'<stop offset="100%" stop-color="{P["mint"]}"/></linearGradient>',
+        # Official Google Gemini 4-color gradients (in 24x24 icon userSpace)
+        '<linearGradient id="gem-g0" gradientUnits="userSpaceOnUse" x1="7" x2="11" y1="15.5" y2="12">'
+        '<stop stop-color="#08B962"/><stop offset="1" stop-color="#08B962" stop-opacity="0"/></linearGradient>',
+        '<linearGradient id="gem-g1" gradientUnits="userSpaceOnUse" x1="8" x2="11.5" y1="5.5" y2="11">'
+        '<stop stop-color="#F94543"/><stop offset="1" stop-color="#F94543" stop-opacity="0"/></linearGradient>',
+        '<linearGradient id="gem-g2" gradientUnits="userSpaceOnUse" x1="3.5" x2="17.5" y1="13.5" y2="12">'
+        '<stop stop-color="#FABC12"/><stop offset=".46" stop-color="#FABC12" stop-opacity="0"/></linearGradient>',
         '<clipPath id="claude-tear-a"><rect x="0" y="42" width="190" height="10"/></clipPath>',
-        '<clipPath id="claude-tear-b"><rect x="0" y="84" width="190" height="8"/></clipPath>',
+        '<clipPath id="claude-tear-b"><rect x="0" y="82" width="190" height="8"/></clipPath>',
     ]
     for name, _, _, art in portraits:
         parts.append(f'<g id="portrait-{name}">{art}</g>')
     parts.append('</defs><g class="channels">')
 
-    # Center 190x157 viewport cleanly inside the (w x h) panel
     px = x + (w - 190) / 2
     py = y + 32
     dots_x0 = x + (w - (4 * 14 + 3 * 6)) / 2
     dots_y = y + h - 18
 
     for i, (name, label, color, _) in enumerate(portraits):
-        # 16s cycle, 4s per slide: i=0 -> 0s, i=1 -> -12s (enters at 4s), i=2 -> -8s (8s), i=3 -> -4s (12s)
         offset = 4 * i - 16 if i else 0
         parts.append(f'<g class="slide{" first" if not i else ""}" style="--offset:{offset}s">')
         parts.append(
@@ -325,7 +233,6 @@ def build_mascot(P, x=24, y=64, w=268, h=242):
             parts.append(_box(dots_x0 + j * 20, dots_y, 14, 3.2, color if i == j else P["border"], 1.6))
         parts.append("</g>")
 
-    # Contact sheet fallback when prefers-reduced-motion: reduce
     parts.append('</g><g class="contact-sheet">')
     for i, (name, label, color, _) in enumerate(portraits):
         short_lbl = label.split("· ", 1)[-1]

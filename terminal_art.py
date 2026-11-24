@@ -417,13 +417,7 @@ def skills_card(P):
         ("drwxr-xr-x", "game_dev/", "gold", ["Minecraft / NeoForge", "KubeJS", "FTB Quests", "Unity 2D"]),
         ("drwxr-xr-x", "workflow/", "mauve", ["VS Code Ext", "Node.js CLI", "GitHub Actions", "SVG Animation"]),
     ]
-    body = [
-        tx(28, 30, "➜", 14, P["mint"], 'class="bold"'),
-        tx(48, 30, "~/skills", 13.5, P["cyan"], 'class="bold"'),
-        tx(120, 30, "ls -la", 13.5, P["text"]),
-        tx(830, 30, "total 4 directories", 11.5, P["dim"], 'text-anchor="end"'),
-        rule(28, 832, 43.5, P["border"]),
-    ]
+    body = [_omz_prompt_row(P, "~/skills", "main", "ls -la", "total 4 directories")]
     for row_i, (perm, dirname, tone, tags) in enumerate(groups):
         y = 72 + row_i * 38
         accent = P[tone]
@@ -587,47 +581,131 @@ GAME_MOTION = """
 """
 
 
+def _omz_prompt_row(P, path, branch, cmd, right=""):
+    """Shared Oh My Zsh prompt header line inside terminal windows (pixel-exact tspan spacing)."""
+    line = (
+        f'<text x="28" y="30" font-size="13.5">'
+        f'<tspan fill="{P["mint"]}" class="bold">➜</tspan>'
+        f'<tspan fill="{P["cyan"]}" class="bold">  {escape(path)} </tspan>'
+        f'<tspan fill="{P["blue"]}" class="bold">git:(</tspan>'
+        f'<tspan fill="{P["red"]}" class="bold">{escape(branch)}</tspan>'
+        f'<tspan fill="{P["blue"]}" class="bold">)</tspan>'
+        f'<tspan fill="{P["gold"]}" class="bold"> ✗ </tspan>'
+        f'<tspan fill="{P["text"]}">{escape(cmd)}</tspan>'
+        f"</text>"
+    )
+    parts = [line]
+    if right:
+        parts.append(tx(830, 30, right, 11, P["dim"], 'text-anchor="end"'))
+    parts.append(rule(28, 832, 43.5, P["border"]))
+    return "".join(parts)
+
+
+# ----------------------------------------------------------------- 4b. FEATURED PROJECTS
+
+FEATURED_PROJECTS = [
+    ("agentinminecraft", "NeoForge 1.21.1 Mod：MCP + WebSocket 给 AI 一具 MC 实体", "Java · MCP", "mint", f"{PROFILE}/agentinminecraft", None),
+    ("OpenJarvis", "本地优先、模型无关的开源桌面语音 AI 助手框架", "Python · MCP", "cyan", f"{PROFILE}/OpenJarvis", None),
+    ("ftb-quests-preview", "本地 FTB Quests 任务书可视化预览编辑器 + Headless CLI", "JS · CLI", "mint", f"{PROFILE}/ftb-quests-preview", None),
+    ("fgo-np-calculator", "FGO 宝具伤害计算器 v2.0：伤害区间、NP 回收、3T 连发试算", "JS · DEMO", "gold", f"{PROFILE}/fgo-np-calculator", "https://1nsaneeee.github.io/fgo-np-calculator/"),
+    ("url-to-markdown", "VS Code 扩展：输入网址智能提取正文并转为干净 Markdown", "TS · VSCode", "cyan", f"{PROFILE}/url-to-markdown", None),
+    ("Programming-Carrier", "Unity 2D 类银河战士恶魔城 RPG 毕业设计（战斗与探索）", "C# · Unity", "mauve", f"{PROFILE}/Programming-Carrier", None),
+    ("pixart-pixel-tool", "24×24 像素画参照工具：图片转 40 色网格，零依赖单文件", "JS · DEMO", "mauve", f"{PROFILE}/pixart-pixel-tool", "https://1nsaneeee.github.io/pixart-pixel-tool/"),
+    ("doc-router", "Agent Skill：Context7 + llms.txt 文档检索路由管线", "PS1 · Skill", "gold", f"{PROFILE}/doc-router", None),
+]
+
+
+def projects_card(P):
+    """Dedicated Oh My Zsh terminal window for Featured Builds."""
+    body = [_omz_prompt_row(P, "~/projects", "main", "tree -L 1 --featured", f"{len(FEATURED_PROJECTS)} builds")]
+    n = len(FEATURED_PROJECTS)
+    for i, (name, summary, tag, tone, _, _) in enumerate(FEATURED_PROJECTS):
+        y = 70 + i * 30
+        branch = "└──" if i == n - 1 else "├──"
+        accent = P[tone]
+        pbg = P[f"pill_{tone}_bg"]
+        pbd = P[f"pill_{tone}_bd"]
+        pw = round(text_px(tag, 11) + 18)
+        px = 830 - pw
+        body.extend([
+            tx(28, y, branch, 13, P["dim"]),
+            tx(60, y, name + "/", 13.2, accent, 'class="bold"'),
+            tx(236, y, shorten(summary, 66), 12.5, P["muted"]),
+            box(px, y - 14.5, pw, 20, pbg, 4, pbd),
+            tx(px + pw / 2, y - 0.5, tag, 11, accent, 'text-anchor="middle" class="bold"'),
+        ])
+    body_h = 70 + n * 30 - 6
+    desc = "Featured projects: " + ", ".join(p[0] for p in FEATURED_PROJECTS)
+    return omz_card(P, "tree ~/projects --featured", desc, body_h, body, "tree -L 1 ~/projects --featured", "PROJECTS")
+
+
+# ----------------------------------------------------------------- 5. CHALDEAS (FGO ZSH TUI)
+
 def chaldeas_card(data, P):
     relative = "chaldeas/AGENTS.md"
     title, profile = read_save(relative)
     joined = date.fromisoformat(profile["入坑日期"])
     elapsed = (date.fromisoformat(data["end"][:10]) - joined).days + 1
+
+    vx, vy, vw, vh = 28, 56, 206, 188
+    viewport = [
+        box(vx, vy, vw, vh, P["panel"], 8, P["border"]),
+        f'<circle cx="{vx + 14}" cy="{vy + 16}" r="3" fill="{P["gold"]}"/>',
+        tx(vx + 24, vy + 19.5, "SABER · ARTORIA", 10.5, P["gold"], 'class="bold"'),
+        f'<g transform="translate({vx + 36} {vy + 29}) scale(1.22)">' + artoria() + "</g>",
+    ]
+
+    kx, vx_r = 258, 354
+    np_y = 148
+    bar_x = vx_r
+    cells_svg = []
+    for idx in range(20):
+        cx = bar_x + idx * 12.5
+        if idx < 19:
+            cells_svg.append(box(cx, np_y - 11, 9.5, 13, P["cyan"], 1.5))
+        else:
+            cells_svg.append(box(cx, np_y - 11, 9.5, 13, P["subtle"], 1.5))
+            cells_svg.append(f'<rect class="np-last" x="{cx:g}" y="{np_y - 11:g}" width="9.5" height="13" rx="1.5" fill="{P["gold"]}"/>')
+
+    lv = escape(shorten(profile["御主等级"], 5))
+    ssr = escape(shorten(profile["五星从者"], 5))
+    fav = escape(shorten(profile["最推从者"], 14))
+    join_note = escape(shorten(profile["入坑备注"], 14))
+
     body = [
-        f'<path d="M24 18h156l10 10v152H33l-9-9z" fill="{P["fgo_card_bg"]}" stroke="{P["fgo_card_bd"]}"/>',
-        f'<path d="M24 41V18h23m118 0h15l10 10v18m0 115v19h-22m-120 0H33l-9-9v-11" '
-        f'fill="none" stroke="{P["fgo_accent"]}" stroke-width="1.5"/>',
-        '<g transform="translate(29 21) scale(1.37)">' + artoria() + "</g>",
-        f'<path d="M25 160h164v19H33l-8-8z" fill="{P["fgo_label_bg"]}"/>',
-        tx(107, 174, "阿尔托莉雅 / SABER", 11, "#f2efe9", 'text-anchor="middle"'),
-        tx(216, 36, "# " + shorten(title, 24), 14, P["fgo_accent"], 'class="bold"'),
-        tx(216, 69, shorten(profile["最推从者"], 16), 26, P["text"], 'class="bold"'),
-        tx(216, 89, "最推从者 · 看板娘是呆毛王", 12, P["muted"]),
-        f'<g transform="translate(438 34)" fill="none" stroke="{P["fgo_accent"]}" stroke-width="1.5">'
-        '<path d="M0 0q32 4 38 34L0 0l14 34z M1 29L33 2m-8 1 8-1-2 8"/></g>',
-        rule(216, 502, 102.5, P["border"]),
-        tx(216, 134, shorten(profile["御主等级"], 5), 26, P["gold"], 'class="bold"'),
-        tx(354, 134, shorten(profile["五星从者"], 5), 26, P["gold"], 'class="bold"'),
-        tx(217, 154, "御主等级", 12, P["muted"]),
-        tx(354, 154, "五星从者 / 骑", 12, P["muted"]),
-        tx(216, 179, f"{joined:%Y.%m.%d} " + shorten(profile["入坑备注"], 18), 13, P["text"]),
-        f'<path d="M526 22v155" stroke="{P["fgo_divider"]}"/>',
-        tx(550, 36, "NP / 宝具试算", 14, P["cyan"], 'class="bold"'),
-        box(550, 51, 222, 8, P["fgo_bar_track"], 2),
-        box(550, 51, 219.8, 8, P["fgo_bar_fill"], 2),
-        f'<rect class="np-last" x="768" y="51" width="4" height="8" fill="{P["gold"]}"/>',
-        tx(832, 60, "99%", 14, P["cyan"], 'class="np-low bold" text-anchor="end"'),
-        tx(832, 60, "100%", 14, P["gold"], 'class="np-full bold" text-anchor="end"'),
-        tx(550, 84, "伤害区间 · NP 回收 · 三回合连发", 13, P["muted"]),
-        tx(550, 107, "1nsaneeee.github.io/fgo-np-calculator ↗", 11.5, P["cyan"]),
-        rule(550, 834, 121.5, P["border"]),
-        tx(550, 148, f"入坑第 {elapsed:,} 天", 16, P["gold"], 'class="bold"'),
-        tx(550, 176, "# " + shorten(profile["吐槽"], 31), 12.5, P["muted"], 'class="dim"'),
+        _omz_prompt_row(P, "~/chaldeas", "master", "fgo-fetch --profile", "chaldea-os"),
+        *viewport,
+        tx(kx, 76, "master", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="76" font-size="13.5">'
+        f'<tspan fill="{P["text"]}">{OWNER}</tspan>'
+        f'<tspan fill="{P["dim"]}"> · </tspan>'
+        f'<tspan fill="{P["gold"]}" class="bold">Lv.{lv} · {ssr}★5</tspan></text>',
+        tx(kx, 100, "favorite", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="100" font-size="13.5">'
+        f'<tspan fill="{P["text"]}" class="bold">{fav}</tspan>'
+        f'<tspan fill="{P["muted"]}" font-size="12.5">  (看板娘: 阿尔托莉雅)</tspan></text>',
+        tx(kx, 124, "joined", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="124" font-size="13.5">'
+        f'<tspan fill="{P["gold"]}">{joined:%Y-%m-%d} · Day {elapsed:,}</tspan>'
+        f'<tspan fill="{P["muted"]}" font-size="12.5">  ({join_note})</tspan></text>',
+        tx(kx, np_y, "np_gauge", 13.5, P["cyan"], 'class="bold"'),
+        *cells_svg,
+        tx(bar_x + 20 * 12.5 + 10, np_y, "99%", 13.5, P["cyan"], 'class="np-low bold"'),
+        tx(bar_x + 20 * 12.5 + 10, np_y, "100%", 13.5, P["gold"], 'class="np-full bold"'),
+        tx(kx, 174, "tool", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="174" font-size="13.2">'
+        f'<tspan fill="{P["mint"]}" class="bold">~/fgo-np-calculator</tspan>'
+        f'<tspan fill="{P["muted"]}" font-size="12.5">  伤害区间 · NP 回收 · 3T 连发</tspan></text>',
+        rule(kx, 830, 194.5, P["border"]),
+        tx(kx, 218, "# " + shorten(profile["吐槽"], 42), 13, P["muted"], 'class="dim"'),
+        box(714, 203, 116, 22, P["pill_gold_bg"], 4, P["pill_gold_bd"]),
+        tx(772, 218, "Live Demo ↗", 11.5, P["gold"], 'text-anchor="middle" class="bold"'),
     ]
     desc = f"{title}。最推 {profile['最推从者']}，御主 Lv.{profile['御主等级']}，五星从者 {profile['五星从者']} 骑。"
-    return omz_card(P, title, desc, 200, body, "cat ~/chaldeas/AGENTS.md", "FGO / MASTER", GAME_MOTION)
+    return omz_card(P, f"fgo-fetch · {title}", desc, 258, body, "fgo-fetch --profile", "FGO / TUI", GAME_MOTION)
 
 
-# ----------------------------------------------------------------- 6. MINECRAFT
+# ----------------------------------------------------------------- 6. MINECRAFT (ZSH TUI)
 
 def _game_ink(P):
     is_light = P["name"] == "light"
@@ -710,67 +788,66 @@ def minecraft_card(P):
     title, profile = read_save(relative)
     packs = [s.strip() for s in profile["整合包"].split("/") if s.strip()]
     mods = [s.strip() for s in profile["熟悉的模组"].split("/") if s.strip()]
-    icons = {
-        "Mekanism": ("M0 2h12v10H0z M3 5v4h6V5z", P["cyan"], "矿物处理"),
-        "工业先锋": ("M0 5h3V2h3v3h3V1h3v11H0z", P["gold"], "工业自动化"),
-        "资源蜜蜂": ("M1 2h3l3 2 2-2h3v3l-2 1v4H3V6L1 5z M5 6v3h1V6z", P["gold"], "资源生产"),
-        "AE2": ("M1 0h10v12H1z M3 2v2h6V2z M3 6v2h6V6z", P["mint"], "ME 网络"),
-    }
+    mod_tones = {"Mekanism": "cyan", "工业先锋": "gold", "资源蜜蜂": "gold", "AE2": "mint"}
+
+    vx, vy, vw, vh = 28, 56, 206, 188
     parts = [
+        _omz_prompt_row(P, "~/minecraft", "1.21.1", "mc-fetch --modpack", "neoforge"),
         _game_ink(P),
-        '<g transform="translate(30 22) scale(1.34)">' + grass_block(P) + "</g>",
-        tx(105, 188, "minecraft:grass_block", 11, P["muted"], 'text-anchor="middle"'),
-        f'<path d="M194 20v168" stroke="{P["mc_divider"]}"/>',
-        tx(218, 40, "# " + shorten(title, 33), 19, P["text"], 'class="bold"'),
-        tx(218, 69, "PACKS", 11, P["muted"]),
+        box(vx, vy, vw, vh, P["panel"], 8, P["border"]),
+        f'<circle cx="{vx + 14}" cy="{vy + 16}" r="3" fill="{P["mint"]}"/>',
+        tx(vx + 24, vy + 19.5, "grass_block · 3D", 10.5, P["mint"], 'class="bold"'),
+        f'<g transform="translate({vx + 36} {vy + 31}) scale(1.22)">' + grass_block(P) + "</g>",
     ]
-    cursor = 266
-    pack_y = 53
-    for pack in packs:
-        label = shorten(pack, 19)
-        width = round(text_px(label, 12) + 20)
-        if cursor + width > 834:
-            cursor = 266
-            pack_y += 28
-        parts.extend([
-            box(cursor, pack_y, width, 22, P["pill_mint_bg"], 4, P["pill_mint_bd"]),
-            tx(cursor + width / 2, pack_y + 15, label, 12, P["mint"], 'text-anchor="middle"'),
-        ])
-        cursor += width + 8
-    shift = pack_y - 53
-    parts.extend([rule(218, 834, 87.5 + shift, P["border"]), tx(218, 108 + shift, "MODS", 11, P["muted"])])
-    columns = 4
-    rows = (len(mods) + columns - 1) // columns
-    for i, mod in enumerate(mods):
-        x = 218 + (i % columns) * 155
-        y = 130 + (i // columns) * 48 + shift
-        shape, color, caption = icons.get(mod, ("M0 0h10v10H0z", P["mint"], ""))
-        parts.append(
-            f'<g class="quest-entry" style="--wait:{i * .09:.2f}s">'
-            f'<path transform="translate({x} {y - 11})" d="{shape}" fill="{color}" fill-rule="evenodd"/>'
-            + tx(x + 20, y, shorten(mod, 16), 14, P["text"])
-            + tx(x + 20, y + 18, caption, 11.5, P["muted"])
-            + "</g>"
-        )
-    footer_y = 158 + shift + max(0, rows - 1) * 48
+
+    kx, vx_r = 258, 354
     parts.extend([
-        rule(218, 834, footer_y, P["border"]),
-        tx(218, footer_y + 24, "# " + shorten(profile["玩家笔记"], 36), 13, P["mint"], 'class="dim"'),
-        tx(834, footer_y + 24, "~/agentinminecraft · ~/ftb-quests-preview ↗", 11.5, P["cyan"], 'text-anchor="end"'),
+        tx(kx, 76, "player", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="76" font-size="13.5">'
+        f'<tspan fill="{P["text"]}" class="bold">{escape(shorten(title, 24))}</tspan>'
+        f'<tspan fill="{P["muted"]}" font-size="12.5">  · Tech Modpacks</tspan></text>',
+        tx(kx, 105, "packs", 13.5, P["cyan"], 'class="bold"'),
     ])
-    css = (
-        "@media(prefers-reduced-motion:no-preference){.quest-entry{animation:entry .35s ease-out var(--wait) backwards}}"
-        "@keyframes entry{from{opacity:.75;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}"
-    )
+    cx = vx_r
+    for pack in packs:
+        label = shorten(pack, 18)
+        pw = round(text_px(label, 12) + 20)
+        parts.extend([
+            box(cx, 89, pw, 22, P["pill_mint_bg"], 4, P["pill_mint_bd"]),
+            tx(cx + pw / 2, 104, label, 12, P["mint"], 'text-anchor="middle"'),
+        ])
+        cx += pw + 8
+
+    parts.append(tx(kx, 137, "mods", 13.5, P["cyan"], 'class="bold"'))
+    cx = vx_r
+    for mod in mods:
+        label = shorten(mod, 14)
+        tone = mod_tones.get(mod, "cyan")
+        pw = round(text_px(label, 12) + 20)
+        parts.extend([
+            box(cx, 121, pw, 22, P[f"pill_{tone}_bg"], 4, P[f"pill_{tone}_bd"]),
+            tx(cx + pw / 2, 136, label, 12, P[tone], 'text-anchor="middle"'),
+        ])
+        cx += pw + 8
+
+    parts.extend([
+        tx(kx, 166, "builds", 13.5, P["cyan"], 'class="bold"'),
+        f'<text x="{vx_r}" y="166" font-size="13.2">'
+        f'<tspan fill="{P["mint"]}" class="bold">~/agentinminecraft</tspan>'
+        f'<tspan fill="{P["dim"]}"> · </tspan>'
+        f'<tspan fill="{P["cyan"]}" class="bold">~/ftb-quests-preview</tspan></text>',
+        rule(kx, 830, 194.5, P["border"]),
+        tx(kx, 218, "# " + shorten(profile["玩家笔记"], 36), 13, P["mint"], 'class="dim"'),
+        tx(830, 218, "● 蜜蜂在上班，我在看 JEI", 12, P["muted"], 'text-anchor="end"'),
+    ])
     return omz_card(
         P,
-        title,
+        f"mc-fetch · {title}",
         "整合包：" + profile["整合包"] + "。模组：" + profile["熟悉的模组"] + "。" + profile["玩家笔记"],
-        footer_y + 44,
+        258,
         parts,
-        "cat ~/Minecraft/SKILL.md",
-        "MC / QUEST BOOK",
-        css,
+        "mc-fetch --modpack",
+        "MC / TUI",
     )
 
 
@@ -788,16 +865,11 @@ def shipped_footer(data, P):
     """Recent real project commits (excluding profile meta-repo) + Oh My Zsh closing sign-off."""
     end = datetime.fromisoformat(data["end"])
     all_rows = data["commits"]
-    # Prioritize real project commits over self-updates to the profile repo
     proj_rows = [r for r in all_rows if r["repo"].lower() != OWNER.lower()]
     recent = (proj_rows if proj_rows else all_rows)[:4]
 
     body = [
-        tx(28, 30, "➜", 14, P["mint"], 'class="bold"'),
-        tx(48, 30, "~/projects", 13.5, P["cyan"], 'class="bold"'),
-        tx(136, 30, "git log --all -n 4 --oneline", 13.5, P["text"]),
-        tx(830, 30, f"updated {end.strftime('%Y-%m-%d')}", 11, P["dim"], 'text-anchor="end"'),
-        rule(28, 832, 43.5, P["border"]),
+        _omz_prompt_row(P, "~/projects", "main", "git log --all -n 4 --oneline", f"updated {end.strftime('%Y-%m-%d')}"),
     ]
 
     tags = [shorten(r["repo"], 19) for r in recent]
@@ -863,6 +935,7 @@ def render_terminal(data, assets, write):
     for mode, P in THEMES.items():
         write(term_dir / f"banner-{mode}.svg", banner(data, P))
         write(term_dir / f"neofetch-{mode}.svg", neofetch(data, P))
+        write(term_dir / f"projects-{mode}.svg", projects_card(P))
         write(term_dir / f"skills-{mode}.svg", skills_card(P))
         write(term_dir / f"chaldeas-{mode}.svg", chaldeas_card(data, P))
         write(term_dir / f"minecraft-{mode}.svg", minecraft_card(P))
@@ -879,6 +952,13 @@ def render_terminal(data, assets, write):
             f"</picture></a>"
         )
         badge_links.append(pic)
+
+    quick_links = []
+    for name, _, _, _, repo_url, demo_url in FEATURED_PROJECTS:
+        if demo_url:
+            quick_links.append(f'<a href="{repo_url}">{name}</a> (<a href="{demo_url}">Demo</a>)')
+        else:
+            quick_links.append(f'<a href="{repo_url}">{name}</a>')
 
     skill_icons = (
         "<picture>\n"
@@ -904,31 +984,20 @@ def render_terminal(data, assets, write):
 
 {_pic("assets/terminal/neofetch-dark.svg", "assets/terminal/neofetch-light.svg", "neofetch · Tom Chou & AI Agents")}
 
-</div>
+{_pic("assets/terminal/projects-dark.svg", "assets/terminal/projects-light.svg", "tree -L 1 ~/projects --featured")}
 
-### `➜ ~/projects` · Featured Builds
+<sub><code>cd ~/projects</code> · {" · ".join(quick_links)}</sub>
 
-| Project | What it does | Stack | Links |
-| :--- | :--- | :--- | :--- |
-| **[agentinminecraft]({PROFILE}/agentinminecraft)** | NeoForge 1.21.1 Mod：MCP（35 工具）+ WebSocket 桥接，给 AI Agent 一具能在 MC 里走路、挖矿、造世界、聊天的真实玩家身体 | `Java` `MCP` | [Repo]({PROFILE}/agentinminecraft) |
-| **[OpenJarvis]({PROFILE}/OpenJarvis)** | 本地优先、模型无关的开源桌面语音 AI 助手框架（唤醒词 → ASR → LLM → MCP 工具执行） | `Python` `MCP` | [Repo]({PROFILE}/OpenJarvis) |
-| **[ftb-quests-preview]({PROFILE}/ftb-quests-preview)** | 本地 FTB Quests 任务书可视化预览编辑器 + Headless CLI（节点拖拽、格式码补全、AI JSON Patch） | `JS` `CLI` | [Repo]({PROFILE}/ftb-quests-preview) |
-| **[fgo-np-calculator]({PROFILE}/fgo-np-calculator)** | FGO 宝具伤害计算器 v2.0：伤害区间、NP 回收、三回合周回连发试算 | `JS` `Web` | [Repo]({PROFILE}/fgo-np-calculator) · [**Demo**](https://1nsaneeee.github.io/fgo-np-calculator/) |
-| **[url-to-markdown]({PROFILE}/url-to-markdown)** | VS Code 扩展：输入网址智能提取正文（Readability）并转换为干净的 Markdown | `TS` `VS Code` | [Repo]({PROFILE}/url-to-markdown) |
-| **[Programming-Carrier]({PROFILE}/Programming-Carrier)** | Unity 2D 类银河战士恶魔城 RPG 毕业设计（战斗、探索、技能系统） | `C#` `Unity` | [Repo]({PROFILE}/Programming-Carrier) |
-| **[pixart-pixel-tool]({PROFILE}/pixart-pixel-tool)** | 24×24 像素画参照工具：图片转 40 色限定像素网格，零依赖单文件 | `JS` `Canvas` | [Repo]({PROFILE}/pixart-pixel-tool) · [**Demo**](https://1nsaneeee.github.io/pixart-pixel-tool/) |
-| **[doc-router]({PROFILE}/doc-router)** | Agent Skill：Context7 + `llms.txt` 文档检索路由管线 | `PS1` `Skill` | [Repo]({PROFILE}/doc-router) |
-
-<div align="center">
+<br/><br/>
 
 {_pic("assets/terminal/skills-dark.svg", "assets/terminal/skills-light.svg", "ls -la ~/skills")}
 
 {skill_icons}
 
-<br/>
+<br/><br/>
 
 <a href="https://1nsaneeee.github.io/fgo-np-calculator/">
-{_pic("assets/terminal/chaldeas-dark.svg", "assets/terminal/chaldeas-light.svg", "迦勒底御主档案 · FGO Master File")}
+{_pic("assets/terminal/chaldeas-dark.svg", "assets/terminal/chaldeas-light.svg", "fgo-fetch · 迦勒底御主档案")}
 </a>
 
 <sub><code>cat ~/chaldeas/AGENTS.md</code> · <a href="./chaldeas/AGENTS.md">御主档案源文件</a> · <a href="https://1nsaneeee.github.io/fgo-np-calculator/">在线打开宝具计算器</a> · <a href="{PROFILE}/fgo-np-calculator">源码仓库</a></sub>
@@ -936,7 +1005,7 @@ def render_terminal(data, assets, write):
 <br/><br/>
 
 <a href="{PROFILE}/ftb-quests-preview">
-{_pic("assets/terminal/minecraft-dark.svg", "assets/terminal/minecraft-light.svg", "Minecraft 科技水槽包任务手册")}
+{_pic("assets/terminal/minecraft-dark.svg", "assets/terminal/minecraft-light.svg", "mc-fetch · Minecraft 科技水槽包任务手册")}
 </a>
 
 <sub><code>cat ~/Minecraft/SKILL.md</code> · <a href="./Minecraft/SKILL.md">任务手册源文件</a> · <a href="{PROFILE}/agentinminecraft">AI 进 MC 模组</a> · <a href="{PROFILE}/ftb-quests-preview">FTB 任务编辑器</a></sub>
