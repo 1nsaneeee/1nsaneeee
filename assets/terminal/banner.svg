@@ -2,6 +2,7 @@
 .lid,.glint{opacity:0}.caret{transform:translateX(90px)}
 @media(prefers-reduced-motion:no-preference){
 .tip-reel{animation:tips var(--cycle) steps(var(--pages),end) infinite}
+.tip-reel text{animation:tip-arrives 6s ease-out infinite}
 .reveal{animation:type 1.08s steps(11,end) both}.caret{animation:travel 1.08s steps(11,end) both}
 .blink{animation:blink 1.1s steps(1,end) infinite}.output{animation:answer .23s ease-out 1.08s backwards}
 .eyes{animation:eyes 4s step-end infinite}.lid{animation:lid 4s step-end infinite}
@@ -9,6 +10,7 @@
 .paw{animation:reach 4s ease-in-out infinite}.mote{animation:dodge 4s ease-in-out infinite}}
 @keyframes type{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes tips{from{transform:translateY(0)}to{transform:translateY(var(--travel))}}
+@keyframes tip-arrives{0%{opacity:.4;transform:translateY(2px)}6%,94%{opacity:1;transform:translateY(0)}100%{opacity:.4}}
 @keyframes travel{from{transform:translateX(0)}to{transform:translateX(90px)}}
 @keyframes answer{from{opacity:0}to{opacity:1}}@keyframes blink{50%{opacity:0}}
 @keyframes eyes{0%,96%{opacity:1}92%{opacity:0}}@keyframes lid{0%,96%{opacity:0}92%{opacity:1}}

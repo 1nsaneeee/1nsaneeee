@@ -1,7 +1,8 @@
-"""Three self-contained SVG cards for a GitHub profile, rendered from one activity snapshot."""
+"""Render the profile's terminal windows from its Markdown files and one GitHub activity snapshot."""
 from collections import Counter
 from datetime import date, datetime, timedelta
 from html import escape
+from math import cos, pi, sin
 from pathlib import Path
 import re
 import unicodedata
@@ -157,6 +158,7 @@ def banner(data):
 .lid,.glint{opacity:0}.caret{transform:translateX(90px)}
 @media(prefers-reduced-motion:no-preference){
 .tip-reel{animation:tips var(--cycle) steps(var(--pages),end) infinite}
+.tip-reel text{animation:tip-arrives 6s ease-out infinite}
 .reveal{animation:type 1.08s steps(11,end) both}.caret{animation:travel 1.08s steps(11,end) both}
 .blink{animation:blink 1.1s steps(1,end) infinite}.output{animation:answer .23s ease-out 1.08s backwards}
 .eyes{animation:eyes 4s step-end infinite}.lid{animation:lid 4s step-end infinite}
@@ -164,6 +166,7 @@ def banner(data):
 .paw{animation:reach 4s ease-in-out infinite}.mote{animation:dodge 4s ease-in-out infinite}}
 @keyframes type{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes tips{from{transform:translateY(0)}to{transform:translateY(var(--travel))}}
+@keyframes tip-arrives{0%{opacity:.4;transform:translateY(2px)}6%,94%{opacity:1;transform:translateY(0)}100%{opacity:.4}}
 @keyframes travel{from{transform:translateX(0)}to{transform:translateX(90px)}}
 @keyframes answer{from{opacity:0}to{opacity:1}}@keyframes blink{50%{opacity:0}}
 @keyframes eyes{0%,96%{opacity:1}92%{opacity:0}}@keyframes lid{0%,96%{opacity:0}92%{opacity:1}}
@@ -287,9 +290,21 @@ def ascii_mark(rows,color):
 
 PORTRAIT_CSS = """
 .slide,.contact-sheet{opacity:0}.first{opacity:1}
+.crt-line,.fault-band{opacity:0}
 @media(prefers-reduced-motion:no-preference){
-.slide{animation:channel 12s linear infinite;animation-delay:var(--offset)}}
+.slide{animation:channel 12s linear infinite;animation-delay:var(--offset)}
+.crt-line{animation:crt-pass 3s linear infinite}
+.gemini-mark,.openai-mark{transform-box:fill-box;transform-origin:center}
+.gemini-mark{animation:stellar 3s ease-in-out infinite}
+.openai-mark{animation:knot-turn 3s ease-in-out infinite}
+.claude-mark{animation:signal-drop 3s steps(1,end) infinite}
+.fault-band{animation:bad-scan 3s steps(1,end) infinite}}
 @keyframes channel{0%,23.6%{opacity:1}25%,98.6%{opacity:0}100%{opacity:1}}
+@keyframes crt-pass{0%,12%{opacity:0;transform:translateY(0)}18%{opacity:.55}65%,100%{opacity:0;transform:translateY(53px)}}
+@keyframes stellar{0%,100%{transform:scale(.84) rotate(-6deg)}51%{transform:scale(1.04) rotate(9deg)}}
+@keyframes knot-turn{0%,13%{transform:rotate(-30deg) scale(.82)}81%,100%{transform:rotate(30deg) scale(.82)}}
+@keyframes signal-drop{0%,37%,47%,100%{opacity:1}34%,44%{opacity:.73}}
+@keyframes bad-scan{0%,100%{opacity:0}32%,42%{opacity:1;transform:translateX(5px)}35%,46%{opacity:1;transform:translateX(-3px)}38%,49%{opacity:0}}
 @media(prefers-reduced-motion:reduce){.channels{display:none}.contact-sheet{opacity:1}}
 """
 
@@ -299,7 +314,8 @@ def mascot():
                ('gemini','GEMINI',MINT,ascii_mark(GEMINI_MARK,MINT)),
                ('openai','OPENAI',CYAN,ascii_mark(OPENAI_MARK,CYAN)),
                ('claude','CLAUDE / 403',RED,ascii_mark(CLAUDE_MARK,RED))]
-    parts=[box(20,53,268,230,BG,8,BORDER),'<defs>']
+    parts=[box(20,53,268,230,BG,8,BORDER),'<defs>',
+           '<clipPath id="glitch-slice"><path d="M0 46h190v9H0z M0 100h190v4H0z"/></clipPath>']
     for name,_,_,art in portraits:
         parts.append(f'<g id="portrait-{name}">{art}</g>')
     parts.append('</defs><g class="channels">')
@@ -307,7 +323,13 @@ def mascot():
         offset=3*i-12 if i else 0
         parts.append(f'<g class="slide{" first" if not i else ""}" style="--offset:{offset}s">')
         parts.append(tx(270,74,label,11,color,'text-anchor="end"'))
-        parts.append(f'<use href="#portrait-{name}" transform="translate(61 83)"/>')
+        parts.append(f'<g transform="translate(61 83)"><g class="{name}-mark"><use href="#portrait-{name}"/></g>')
+        if name=='meow':
+            parts.append(f'<rect class="crt-line" x="34" y="55" width="122" height="1.5" fill="{MINT}"/>')
+        if name=='claude':
+            parts.append('<g clip-path="url(#glitch-slice)"><g class="fault-band">'
+                         +box(-7,0,204,159,BG)+'<use href="#portrait-claude"/></g></g>')
+        parts.append('</g>')
         for j in range(4):
             parts.append(box(123+j*17,264,12,3,color if i==j else BORDER,1))
         parts.append('</g>')
@@ -458,73 +480,225 @@ SABER_ROWS = (
 )
 
 
+SABER_LID_Y = 24
+SABER_LIDS = (
+    '                               HHJT',
+    '                             PJBBGJ',
+    '                           MJBBBJVT',
+    '             R R           M BJTVJP',
+    '            PQQGJ          QVVVTJB',
+    '             VUGBG           BBBBG',
+    '             PVTGBJ           BB',
+    '              HTVVQJ',
+    '               JGJJ',
+)
+
+
+def portrait_strokes(rows,code):
+    return ''.join(f'M{run.start()} {y}h{len(run[0])}'
+                   for y,row in enumerate(rows) for run in re.finditer(code+'+',row))
+
+
 def artoria():
-    # Each cell samples the supplied FGO portrait. Draw same-ink runs together so
-    # the crown, eyes and fur retain their shape without embedding a bitmap or font.
-    tiles=['<pattern id="saber-cell" patternUnits="userSpaceOnUse" width="1" height="1" '
-           'viewBox="0 0 6 7" preserveAspectRatio="none"/>']
+    # Paint the sampled colours continuously; a transparent ASCII tile adds the
+    # character grain without introducing dark seams between neighbouring pixels.
+    defs=[]
     glyph_ids={}
-    faces=[]
+    layers=[([],[]),([],[])]
     for code,color,glyph in SABER_INKS:
-        runs=[]
-        for y,row in enumerate(SABER_ROWS):
-            for run in re.finditer(code+'+',row):
-                runs.append(f'M{run.start()} {y}h{len(run[0])}')
-        if not runs:
-            continue
         if glyph not in glyph_ids:
-            glyph_ids[glyph]='char-'+str(len(glyph_ids))
-            tiles.append(tx(0,6,glyph,7,'#322727',
-                            f'id="{glyph_ids[glyph]}" font-weight="700" opacity=".23"'))
-        tile='saber-'+code
-        tiles.append(f'<pattern id="{tile}" href="#saber-cell"><path d="M0 0h6v7H0z" fill="{color}"/>'
-                     f'<use href="#{glyph_ids[glyph]}"/></pattern>')
-        faces.append(f'<path stroke="url(#{tile})" d="{"".join(runs)}"/>')
-    return ('<defs>'+''.join(tiles)+'</defs><g transform="translate(0 3) scale(2.12 2.29)" '
-            'fill="none" stroke-width="1.015">'+''.join(faces)+'</g>')
+            tile='saber-glyph-'+str(len(glyph_ids))
+            glyph_ids[glyph]=tile
+            defs.append(f'<pattern id="{tile}" patternUnits="userSpaceOnUse" width="1.6" height="1.6" '
+                        'viewBox="0 0 6 7" preserveAspectRatio="none">'
+                        +tx(0,6,glyph,7,'#3c2f29','font-weight="700" opacity=".32"')+'</pattern>')
+        for i,rows in enumerate((SABER_ROWS,SABER_LIDS)):
+            strokes=portrait_strokes(rows,code)
+            if not strokes:
+                continue
+            ink='saber-'+str(i)+code
+            defs.append(f'<path id="{ink}" d="{strokes}"/>')
+            base,letters=layers[i]
+            base.append(f'<use href="#{ink}" stroke="{color}"/>')
+            letters.append(f'<use href="#{ink}" stroke="url(#{glyph_ids[glyph]})"/>')
+    painted=['<g shape-rendering="crispEdges">'+''.join(base)+'</g>'+''.join(letters) for base,letters in layers]
+    return ('<defs>'+''.join(defs)+'</defs><g transform="translate(0 3) scale(2.12 2.29)" '
+            'fill="none" stroke-width="1.015">'+painted[0]
+            +f'<g class="saber-lids" transform="translate(0 {SABER_LID_Y})">'+painted[1]+'</g></g>')
+
+
+
+
+
+def cube_pose(angle):
+    # Orthographic isometric camera; a face is a textured unit square with a 100x100 UV grid.
+    c,s=cos(angle),sin(angle)
+    corners=[]
+    for x,z in ((-.5,-.5),(.5,-.5),(.5,.5),(-.5,.5)):
+        corners.append((55+65.05*(x*c-z*s),34.5+37.56*(x*s+z*c)))
+    px,py=corners[0]
+    poses=[(True,((corners[1][0]-px)/100,(corners[1][1]-py)/100,
+                  (corners[3][0]-px)/100,(corners[3][1]-py)/100,px,py))]
+    for i,(end_x,end_y) in enumerate(corners):
+        x,y=corners[(i+1)%4]
+        poses.append((end_x>x+0.001,((end_x-x)/100,(end_y-y)/100,0,.5312,x,y)))
+    return poses
 
 
 def grass_block():
-    return ''.join([
-        # All three projected edges are 53.1 units, at 30, 150 and 270 degrees.
-        game_shape('M9 33.56L55 60.12V113.24L9 86.68Z','loam','#9b846d'),
-        game_shape('M55 60.12L101 33.56V86.68L55 113.24Z','soil','#826b57'),
-        game_shape('M9 33.56L55 7L101 33.56L55 60.12Z','grass','#84bc78'),
-        game_shape('M9 33.56L55 60.12V68L49 65V70L45 68V62L37 57V62L31 58V53L23 49V53L18 50V46L9 41Z',
-                   'grass','#76a76c'),
-        game_shape('M55 60.12L101 33.56V42L95 46V50L89 54V49L79 55V60L73 64V60L64 65V71L55 75Z',
-                   'grass','#598a61'),
-        tx(17,72,'+.',7,'#e1c099'),tx(34,80,'#',7,'#93785d'),
-        tx(65,82,'/+',7,'#c3a88b'),tx(84,69,'::',7,'#c3a88b'),
-        '<path d="M56 28l12-6 13 6-13 6z" fill="#708394" stroke="#a3b8c3"/>'
-        '<path d="M56 28l12 6v11l-12-6z" fill="#334553" stroke="#79909f"/>'
-        '<path d="M68 34l13-6v11l-13 6z" fill="#1c303e" stroke="#79909f"/>',
-        tx(58,38,'=',8,CYAN),tx(70,40,'::',7,MINT),
-        '<g class="machine-hop" stroke-linejoin="round">'
-        +box(65,10,7,7,'#e1bd96')+box(65,10,7,2,'#705438')+box(70,13,1.4,1.4,'#483c38')
-        +'<path d="M66 17h5v6h-5zM63 18h3v5h-3zM71 17h4v3h-4z" fill="#75c4cb"/>'
-        '<path d="M66 23h5v6h-2v-4h-1v4h-2z" fill="#94aacf"/></g>',
-    ])
+    # Patches of lighter and darker texels break up the repeating character grain.
+    grass_pixels='<path d="M3 9h13v7H3z M20 13h9v8h-9z M53 4h12v8H53z M72 27h10v9H72z M4 44h10v8H4z M31 58h16v9H31z M80 76h9v14h-9z M47 89h11v7H47z" fill="#20472c" opacity=".5"/>'
+    dirt_pixels='<path d="M3 37h11v7H3z M28 29h8v10h-8z M55 44h14v8H55z M81 37h11v6H81z M15 62h15v11H15z M42 73h9v6h-9z M73 86h14v8H73z M5 90h11v8H5z" fill="#654833" opacity=".6"/>'
+    top=(box(0,0,100,100,'url(#ink-grass)')
+         +grass_pixels
+         +'<path d="M9 16h6v3H9z M69 11h5v3h-5z M43 30h8v3h-8z M18 72h6v3h-6z M75 83h8v3h-8z" fill="#9ace83"/>')
+    fringe='M0 0h100v15h-8v4h-8v-6h-9v10h-7v-8h-9v5h-9v-7h-9v13h-6v-8h-9v-5h-8v7h-9v-6H0z'
+    side=(box(0,0,100,100,'url(#ink-loam)')+dirt_pixels+game_shape(fringe,'grass','#568350')
+          +'<path d="M9 41h8v4H9z M46 70h6v4h-6z M78 54h9v3h-9z" fill="#9c7a53"/>')
+    parts=['<defs><g id="block-top">'+top+'</g><g id="block-wall">'+side+'</g></defs>']
+    frames=72
+    poses=[cube_pose(pi/4+2*pi*f/frames) for f in range(frames+1)]
+    css=[]
+    for face in range(5):
+        keys=[]
+        hidden=False
+        for f,pose in enumerate(poses):
+            visible,matrix=pose[face]
+            transform='matrix('+','.join(f'{n:.3f}'.rstrip('0').rstrip('.') for n in matrix)+')'
+            if f==0:
+                ref='block-top' if face==0 else 'block-wall'
+                parts.append(f'<g class="cube-face-{face}" visibility="{"visible" if visible else "hidden"}" transform="{transform}">'
+                             f'<use href="#{ref}"/>')
+                if face in (1,3):
+                    parts.append('<rect width="100" height="100" fill="#17232a" opacity=".24"/>')
+                parts.append('</g>')
+            if not visible and hidden and f!=frames:
+                continue
+            style=f'visibility:visible;transform:{transform}' if visible else 'visibility:hidden'
+            keys.append(f'{100*f/frames:.2f}%{{{style}}}')
+            hidden=not visible
+        css.append(f'@keyframes yaw-{face}{{{"".join(keys)}}}'
+                   f'@media(prefers-reduced-motion:no-preference){{.cube-face-{face}{{animation:yaw-{face} 6s step-end infinite}}}}')
+    return '<style>'+''.join(css)+'</style>'+''.join(parts)
 
 
-def game_saves():
-    parts=[game_ink(),rule(22,838,295.5),f'<path d="M431 312v118" stroke="{BORDER}"/>']
-    summaries=[]
-    saves=[
-        (24,artoria(),'阿尔托莉雅 / Saber','~/saves/chaldea','FGO · 最推 EMIYA',GOLD,
-         '2018.08.27 被骗入迦勒底。','御主 Lv.155 · 五星从者 60 骑','宝具伤害有公式，抽卡没有。'),
-        (443,grass_block(),'minecraft:grass_block','~/saves/overworld','MC · 科技水槽包爱好者',MINT,
-         'ATM · 迷厄路 · FTB Series','Mekanism · 工业先锋 · 资源蜜蜂 · AE2','喜欢在机器上蹦蹦跳跳'),
+def read_save(relative):
+    """Read the heading and full-width-colon Markdown fields displayed by cat."""
+    lines=(Path(__file__).parent/relative).read_text(encoding='utf-8-sig').splitlines()
+    title=next(line[2:].strip() for line in lines if line.startswith('# '))
+    fields={}
+    for line in lines:
+        if line.startswith('- ') and '：' in line:
+            key,value=line[2:].split('：',1)
+            fields[key.strip()]=value.strip()
+    return title,fields
+
+
+def file_header(relative,mode):
+    return anchor(f'{PROFILE}/{OWNER}/blob/main/{relative}',relative,
+                  chrome('cat ~/'+relative,mode))
+
+
+def master_record(data):
+    relative='chaldeas/AGENTS.md'
+    title,profile=read_save(relative)
+    joined=date.fromisoformat(profile['入坑日期'])
+    elapsed=(date.fromisoformat(data['end'][:10])-joined).days+1
+    gold='#b69b62'
+    body=[
+        file_header(relative,'FGO / MASTER FILE'),
+        '<path d="M21 51h156l10 10v152H30l-9-9z" fill="#171918" stroke="#716246"/>',
+        '<path d="M21 74V51h23m118 0h15l10 10v18m0 115v19h-22m-120 0H30l-9-9v-11" fill="none" stroke="#d8b779" stroke-width="1.5"/>',
+        '<g transform="translate(26 54) scale(1.37)">'+artoria()+'</g>',
+        '<path d="M22 193h164v19H30l-8-8z" fill="#20221f"/>',
+        tx(104,207,'阿尔托莉雅 / SABER',11,WHITE,'text-anchor="middle"'),
+        tx(213,68,'# '+shorten(title,24),14,gold),
+        tx(213,101,shorten(profile['最推从者'],16),26,WHITE,'class="bold"'),
+        tx(213,122,'最推从者',12,GRAY),
+        '<g transform="translate(438 67)" fill="none" stroke="#b39b71" stroke-width="1.4">'
+        '<path d="M0 0q32 4 38 34L0 0l14 34z M1 29L33 2m-8 1 8-1-2 8"/></g>',
+        rule(213,503,134.5),
+        tx(213,166,shorten(profile['御主等级'],5),26,GOLD,'class="bold"'),
+        tx(352,166,shorten(profile['五星从者'],5),26,GOLD,'class="bold"'),
+        tx(214,186,'御主等级',12,GRAY),tx(352,186,'五星从者 / 骑',12,GRAY),
+        tx(213,212,f'{joined:%Y.%m.%d} '+shorten(profile['入坑备注'],18),13,WHITE),
+        '<path d="M526 55v155" stroke="#383b39"/>',
+        tx(551,69,'NP / 宝具试算',14,CYAN,'class="bold"'),
+        box(552,84,221,8,'#263640',2),box(552,84,218.8,8,'#82bde2',2),
+        '<rect class="np-last" x="769" y="84" width="4" height="8" fill="#f7d875"/>',
+        tx(832,93,'99%',14,CYAN,'class="np-low" text-anchor="end"'),
+        tx(832,93,'100%',14,GOLD,'class="np-full" text-anchor="end"'),
+        tx(551,116,'伤害区间 · NP 回收 · 三回合连发',13,GRAY),
+        anchor(PROFILE+'/fgo-np-calculator','宝具伤害计算器',tx(551,139,'~/fgo-np-calculator/ ↗',13,CYAN)),
+        rule(551,837,153.5),tx(551,179,f'入坑第 {elapsed:,} 天',16,GOLD),
+        tx(551,208,'# '+shorten(profile['吐槽'],31),12.5,GRAY,'class="dim"'),
     ]
-    for x,art,caption,slot,name,color,line1,line2,aside in saves:
-        label_x=x+124
-        summaries.append(' '.join((name,line1,line2,aside)))
-        parts.extend([f'<g transform="translate({x} 309)">{art}</g>',
-                      tx(x+54,437,caption,9,GRAY,'text-anchor="middle"'),
-                      tx(label_x,326,slot,12,GRAY),tx(label_x,352,name,16,color,'class="bold"'),
-                      tx(label_x,377,line1,14,WHITE),tx(label_x,397,line2,13,WHITE),
-                      tx(label_x,424,'# '+aside,13,GRAY,'class="dim"')])
-    return ''.join(parts),'；'.join(summaries)
+    desc=f"{title}。最推 {profile['最推从者']}，御主 Lv.{profile['御主等级']}，五星从者 {profile['五星从者']} 骑。{joined} {profile['入坑备注']}。"
+    return card(title,desc,233,body,GAME_MOTION)
+
+
+def quest_book(data):
+    relative='Minecraft/SKILL.md'
+    title,profile=read_save(relative)
+    packs=[s.strip() for s in profile['整合包'].split('/') if s.strip()]
+    mods=[s.strip() for s in profile['熟悉的模组'].split('/') if s.strip()]
+    icons={
+        'Mekanism':('M0 2h12v10H0z M3 5v4h6V5z',CYAN,'矿物处理'),
+        '工业先锋':('M0 5h3V2h3v3h3V1h3v11H0z',GOLD,'工业自动化'),
+        '资源蜜蜂':('M1 2h3l3 2 2-2h3v3l-2 1v4H3V6L1 5z M5 6v3h1V6z',GOLD,'资源生产'),
+        'AE2':('M1 0h10v12H1z M3 2v2h6V2z M3 6v2h6V6z',MINT,'ME 网络'),
+    }
+    parts=[file_header(relative,'MINECRAFT / QUEST BOOK'),game_ink(),
+           '<g transform="translate(28 56) scale(1.34)">'+grass_block()+'</g>',
+           tx(103,222,'minecraft:grass_block',11,GRAY,'text-anchor="middle"'),
+           '<path d="M192 53v170" stroke="#304438"/>',
+           tx(215,72,'# '+shorten(title,33),20,WHITE,'class="bold"'),tx(215,102,'PACKS',11,GRAY)]
+    cursor=262
+    pack_y=86
+    for pack in packs:
+        label=shorten(pack,19)
+        width=cells(label)*7+20
+        if cursor+width>838:
+            cursor=262
+            pack_y+=28
+        parts.extend([box(cursor,pack_y,width,22,'#1d3027',3),tx(cursor+10,pack_y+15,label,12,MINT)])
+        cursor+=width+7
+    shift=pack_y-86
+    parts.extend([rule(215,837,119.5+shift),tx(215,140+shift,'MODS',11,GRAY)])
+    columns=4
+    rows=(len(mods)+columns-1)//columns
+    for i,mod in enumerate(mods):
+        x=215+(i%columns)*157;y=162+(i//columns)*48+shift
+        shape,color,caption=icons.get(mod,('M0 0h10v10H0z',MINT,''))
+        parts.extend([f'<g class="quest-entry" style="--wait:{i*.09:.2f}s">'
+                      f'<path transform="translate({x} {y-11})" d="{shape}" fill="{color}" fill-rule="evenodd"/>'
+                      +tx(x+20,y,shorten(mod,16),14,WHITE)+tx(x+20,y+18,caption,11.5,GRAY)+'</g>'])
+    footer=190+shift+max(0,rows-1)*48
+    parts.extend([rule(215,837,footer),tx(215,footer+25,'# '+shorten(profile['玩家笔记'],41),13,MINT,'class="dim"'),
+                  anchor(PROFILE+'/ftb-quests-preview','FTB Quests 任务编辑器',
+                         tx(837,footer+25,'~/ftb-quests-preview/ ↗',12,CYAN,'text-anchor="end"'))])
+    css=('@media(prefers-reduced-motion:no-preference){.quest-entry{animation:entry .35s ease-out var(--wait) backwards}}'
+         '@keyframes entry{from{opacity:.25;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}')
+    return card(title,'整合包：'+profile['整合包']+'。模组：'+profile['熟悉的模组']+'。'+profile['玩家笔记'],
+                footer+46,parts,css)
+
+
+
+
+
+GAME_MOTION = """
+.saber-lids,.np-last,.np-full{opacity:0}
+@media(prefers-reduced-motion:no-preference){
+.saber-lids{animation:saber-blink 8.8s linear infinite}
+.np-last,.np-full{animation:charged 7.6s step-end infinite}
+.np-low{animation:charging 7.6s step-end infinite}}
+@keyframes saber-blink{0%,32%,35.8%,82%,85.8%,100%{opacity:0}33.3%,34.5%,83.3%,84.5%{opacity:1}}
+@keyframes charged{0%,76%,100%{opacity:0}77%,96%{opacity:1}}
+@keyframes charging{0%,76%,100%{opacity:1}77%,96%{opacity:0}}
+"""
+
+
+
 
 
 def neofetch(data):
@@ -545,15 +719,11 @@ def neofetch(data):
         if key=='gemini':
             body.append(spinner(386,y))
     body.append(languages(data.get('language_bytes',{})))
-    saves_svg,saves_desc=game_saves()
-    body.append(saves_svg)
     css=('@media(prefers-reduced-motion:no-preference){.spinner{animation:spin 1.25s steps(10,end) infinite}'
-         '.pupils{animation:glance 6.8s steps(2,end) infinite}'
-         '.machine-hop{animation:hop 4.2s ease-in-out infinite}}@keyframes spin{to{transform:translateY(-140px)}}'
-         '@keyframes hop{0%,9%,26%,31%,46%,100%{transform:translateY(0)}17%{transform:translateY(-8px)}39%{transform:translateY(-5px)}}'
+         '.pupils{animation:glance 6.8s steps(2,end) infinite}}@keyframes spin{to{transform:translateY(-140px)}}'
          '@keyframes glance{0%,66%,89%,100%{transform:translateX(0)}72%,83%{transform:translateX(5px)}}')
     desc = '; '.join(f'{key}: {value}' for key,value,_ in fields)
-    return card('neofetch · AI agents',desc+'; MEOW, Gemini, OpenAI, Claude; '+saves_desc,453,body,css+PORTRAIT_CSS)
+    return card('neofetch · AI agents',desc+'; MEOW, Gemini, OpenAI, Claude.',300,body,css+PORTRAIT_CSS)
 
 
 def heatmap(first,last,counts):
@@ -633,7 +803,7 @@ def activity(data):
 def render_terminal(data,assets,write):
     target=Path(assets)/'terminal'
     target.mkdir(parents=True,exist_ok=True)
-    for name,render in [('banner',banner),('neofetch',neofetch),('activity',activity)]:
+    for name,render in [('banner',banner),('neofetch',neofetch),('chaldeas',master_record),('minecraft',quest_book),('activity',activity)]:
         write(target/(name+'.svg'),render(data))
     badges=[]
     # Use the official flat-square Shields PNGs locally so GitHub's image proxy is not in the request path.
@@ -642,6 +812,10 @@ def render_terminal(data,assets,write):
                            ('fgo-np-calculator','fgo-np-calculator','fgo-np-calculator')]:
         badges.append(f'[![{label}](./assets/badges/{file}.png)]({PROFILE}/{repo})')
     return ('![1nsaneeee · 写点工具，也做游戏](./assets/terminal/banner.svg)\n\n'
-            +' '.join(badges)+'\n\n![neofetch · Tom Chou、AI agents 与 FGO / Minecraft 游戏存档](./assets/terminal/neofetch.svg)\n\n'
+            +' '.join(badges)+'\n\n![neofetch · Tom Chou 与三位 AI](./assets/terminal/neofetch.svg)\n\n'
+            +'[![迦勒底御主档案](./assets/terminal/chaldeas.svg)]'
+            +f'(https://raw.githubusercontent.com/{OWNER}/{OWNER}/main/assets/terminal/chaldeas.svg)\n\n'
+            +'[![Minecraft 任务手册](./assets/terminal/minecraft.svg)]'
+            +f'(https://raw.githubusercontent.com/{OWNER}/{OWNER}/main/assets/terminal/minecraft.svg)\n\n'
             +'[![365 天活跃度、最近四条提交与项目目录](./assets/terminal/activity.svg)]'
             +f'(https://raw.githubusercontent.com/{OWNER}/{OWNER}/main/assets/terminal/activity.svg)\n')
