@@ -6,16 +6,18 @@ import json, os, subprocess
 from terminal_art import render_terminal
 owner='1nsaneeee'
 base='https://api.github.com'
-def pages(path,**params):
+def api(path,**params):
     headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'zsh-public-profile'}
     token = os.environ.get('GITHUB_TOKEN')
     if token:
         headers['Authorization'] = 'Bearer ' + token
+    url=base+path+('?' + urlencode(params) if params else '')
+    with urlopen(Request(url,headers=headers),timeout=25) as response:
+        return json.load(response)
+
+def pages(path,**params):
     for page in range(1,1000):
-        url=base+path+'?'+urlencode(dict(params,per_page=100,page=page))
-        req=Request(url,headers=headers)
-        with urlopen(req,timeout=25) as response:
-            body=json.load(response)
+        body=api(path,**params,per_page=100,page=page)
         if not isinstance(body,list): raise ValueError('Expected a list from '+path)
         yield from body
         if len(body)<100:break
@@ -39,8 +41,21 @@ def snapshot():
             sha=row['sha']
             parents = [parent['sha'] for parent in row.get('parents', ())]
             all_rows.setdefault(sha,dict(sha=sha,repo=slug,branch=repo['default_branch'],parents=parents,time=time.isoformat(),title=row['commit']['message'].splitlines()[0],url=row['html_url']))
-    return {'end':when.isoformat(),'start':start.isoformat(),'owned':len(repos),'scanned':total,'commits':sorted(all_rows.values(),key=lambda row:(row['time'],row['sha']),reverse=True)}
-palette=['#24362e','#3e7958','#5eac71','#97d588','#d7ed9f']
+    commits=sorted(all_rows.values(),key=lambda row:(row['time'],row['sha']),reverse=True)
+    for item in commits[:5]:
+        detail=api('/repos/'+owner+'/'+quote(item['repo'])+'/commits/'+item['sha'],per_page=1)
+        item['stats']=detail.get('stats')
+        for line in detail['commit']['message'].splitlines():
+            trailer=line.lower()
+            if trailer.startswith('co-authored-by:'):
+                for agent in ('gemini','openai','claude'):
+                    if agent in trailer:
+                        item['ai']=agent
+                        break
+    repositories=[{'name':r['name'],'fork':r['fork']} for r in repos if not r['private']]
+    return {'end':when.isoformat(),'start':start.isoformat(),'owned':len(repos),'scanned':total,'repositories':repositories,
+            'created_at':api('/users/'+owner)['created_at'],'commits':commits}
+palette=['#24362e','#395c4b','#4a836c','#70af93','#a1dbc0']
 
 def heatmap(first,last,counts,small):
     monday=first-timedelta(days=first.weekday())
@@ -54,7 +69,7 @@ def heatmap(first,last,counts,small):
     out=[f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title">',
          '<title id="title">每日提交热力图；精确数量见按日明细</title>',
          f'<rect width="{width}" height="{height}" fill="#101816"/>',
-         '<g fill="#b0beb2" font-family="ui-monospace,monospace" font-size="10">']
+         '<g fill="#99b5a5" font-size="10">']
     for band_index,(a,b) in enumerate(ranges):
         top=band*band_index
         labels=[]

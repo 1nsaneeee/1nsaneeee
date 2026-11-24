@@ -1,302 +1,556 @@
-"""Render the profile as contiguous terminal strips with real HTML links around the rows."""
-from datetime import datetime
+"""Pure SVG rendering of a tiled desktop, including responsive crops for GitHub Markdown."""
+from collections import Counter
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 from html import escape
 from pathlib import Path
 import re
 import unicodedata
+from xml.etree import ElementTree as ET
 
-BG = '#101816'
-TEXT = '#d4dfd6'
-MUTED = '#a5b6aa'
-MINT = '#91cbb7'
-GREEN = '#bfeca8'
-SHA = '#d5e799'
+BG = '#0c1411'
+PANEL = '#101b16'
+BAR = '#17271f'
+BORDER = '#354b3e'
+MINT = '#9bdfbe'
+MID = '#75b998'
+INK = '#d3e3d9'
+DIM = '#91aa9a'
+LOW = '#65816f'
+RED = '#e06c75'
+FONT = "'JetBrains Mono','Fira Code','Cascadia Code',ui-monospace,monospace"
 PROJECTS = ('ftb-quests-preview', 'url-to-markdown', 'fgo-np-calculator', 'Programming-Carrier')
 PROFILE = 'https://github.com/1nsaneeee'
+NOTES = [
+    '> checking minecraft mod mixins & fgo np damage formula...',
+    '> warn: claude.service crashed (403 banned). falling back to gemini & caffeine.',
+    '> conclusion: ship it first, fix bugs in next commit.',
+]
+ENV = [('GEMINI', 'CaffeineOrCoke-ThatsAQuestion', '[200 OK]'),
+       ('OPENAI', 'ModdingMCAndFightingWithKubejs', '[200 OK]'),
+       ('CLAUDE', 'said-hi-and-got-instantly-banned', '[403 BANNED]')]
+BRAILLE = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 
 
-def svg(width, height, body):
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-            f'viewBox="0 0 {width} {height}"><rect width="100%" height="100%" fill="{BG}"/>'
-            f'<g font-family="Consolas, Menlo, Liberation Mono, Microsoft YaHei, monospace">{body}</g></svg>\n')
+def cells(value):
+    return sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in value)
 
 
-def text(x, y, value, size=15, color=TEXT, bold=False, end=False):
-    weight = ' font-weight="bold"' if bold else ''
-    align = ' text-anchor="end"' if end else ''
-    return f'<text x="{x}" y="{y}" font-size="{size}" fill="{color}"{weight}{align}>{escape(value)}</text>'
-
-
-def prompt(x, y, path, cmd, size):
-    return (f'<text x="{x}" y="{y}" font-size="{size}" font-weight="bold">'
-            f'<tspan fill="{MINT}">{escape(path)} ❯ </tspan>'
-            f'<tspan fill="{TEXT}">{escape(cmd)}</tspan></text>')
-
-
-def picture(stem, description, link=None, banner=False, still=None):
-    path = './assets/' if banner else './assets/terminal/'
-    ext = 'gif' if banner else 'svg'
-    static = ''
-    if still:
-        name, extension = still
-        static = (f'<source media="(max-width: 600px) and (prefers-reduced-motion: reduce)" srcset="{path}{name}-mobile.{extension}">'
-                  f'<source media="(prefers-reduced-motion: reduce)" srcset="{path}{name}.{extension}">')
-    tag = (f'<picture>{static}<source media="(max-width: 600px)" srcset="{path}{stem}-mobile.{ext}">'
-           f'<img width="100%" align="top" alt="{escape(description, quote=True)}" src="{path}{stem}.{ext}"></picture>')
-    return f'<a href="{escape(link, quote=True)}">{tag}</a>' if link else tag
-
-
-def ascii_cat(mobile, animated):
-    # Eyes, foreleg and cursor column for anticipation, reach, catch and release.
-    poses = [
-        (0,  'o.o', '>',         17),
-        (18, 'o.o', '>',         None),
-        (27, 'o.O', '>o',        17),
-        (38, 'o.O', '>--o',      16),
-        (44, 'O.O', '>------o',  15),
-        (53, '^.^', '>---o',     12),
-        (62, '^.^', '>o',         9),
-        (78, 'o.o', '>o',        13),
-        (85, 'o.o', '>',         17),
-    ]
-    keyframes, sprites = [], []
-    for index, (percent, eyes, paw, cursor) in enumerate(poses if animated else poses[:1]):
-        keyframes.append(f'{percent}%{{transform:translateY(-{index*64}px)}}')
-        lines = [(r'    /\_/\ ', MINT), (f'   ( {eyes} )', TEXT),
-                 ('   /   '+paw, GREEN), ('~ (_____)', MINT)]
-        sprite = ''.join(f'<text x="{run.start()*9.6:.1f}" y="{line*14}" font-size="16" fill="{color}" '
-                         f'textLength="{len(run[0])*9.6:.1f}" lengthAdjust="spacingAndGlyphs">{escape(run[0])}</text>'
-                         for line, (chars, color) in enumerate(lines, 1) for run in re.finditer(r'\S+', chars))
-        if cursor is not None:
-            sprite += f'<rect x="{cursor*9.6}" y="30" width="7" height="13" fill="{SHA}"/>'
-        sprites.append(f'<g transform="translate(0 {index*64})">{sprite}</g>')
-    style = ('<style>@keyframes catch{' + ''.join(keyframes) + '100%{transform:translateY(0)}}'
-             '@media (prefers-reduced-motion:no-preference){.cat{animation:catch 3.6s step-end infinite}}</style>') if animated else ''
-    cat_x, cat_y, w, h = (228, 30, 120, 44) if mobile else (656, 29, 173, 59)
-    cat = (f'<svg x="{cat_x}" y="{cat_y}" width="{w}" height="{h}" viewBox="0 0 180 64" overflow="hidden">'
-           f'{style}<g class="cat" xml:space="preserve" font-family="Consolas,monospace">'
-           + ''.join(sprites) + '</g></svg>')
-    return cat
-
-
-def wrapped(value, limit):
-    """Approximate monospace display cells, keeping word boundaries when possible."""
-    lines, line, cells = [], '', 0
-    for word in re.findall(r'\S+\s*', value):
-        word_cells = sum(2 if unicodedata.east_asian_width(c) in 'WF' else 1 for c in word)
-        if line and cells + word_cells > limit:
+def wrap(value, limit):
+    lines, line = [], ''
+    for token in re.findall(r'\S+\s*', value):
+        if line and cells(line+token.rstrip()) > limit:
             lines.append(line.rstrip())
-            line, cells = '', 0
-        for char in word:
-            size = 2 if unicodedata.east_asian_width(char) in 'WF' else 1
-            if cells + size > limit:
-                lines.append(line.rstrip())
-                line, cells = '', 0
-            line += char
-            cells += size
-    if line.strip(): lines.append(line.rstrip())
+            line = ''
+        for c in token:
+            if cells(line+c)>limit:
+                if line.strip():
+                    lines.append(line.rstrip())
+                line=''
+            line += c
+    if line.strip():
+        lines.append(line.rstrip())
     return lines or ['']
 
 
-EDGE = '#425749'
-AMBER = '#e9bc78'
-BAR = '#1b2922'
-BADGES = [('TS', 'TypeScript', '#80b9ed'), ('JS', 'JavaScript', '#e5c968'),
-          ('#', 'C#', '#b7a9d1'), ('>_', 'zsh', MINT)]
-COMMANDS = [('identity', '~', 'whoami | figlet'), ('profile', '~', 'cat ~/.plan'),
-            ('activity', '~/src', 'cat activity/365d.ansi'), ('commits', '~/src', 'git log -5 --graph'),
-            ('repos', '~/src', 'tree -d -L 1')]
+def shorten(value, limit):
+    if cells(value)<=limit:
+        return value
+    line = ''
+    for c in value:
+        if cells(line+c)>limit-1:
+            break
+        line += c
+    return line+'…'
 
 
-def frame(width, height, bottom=False):
-    path = f'M.5 0V{height} M{width-.5} 0V{height}'
-    if bottom:
-        path += f' M0 {height-.5}H{width}'
-    return f'<path d="{path}" fill="none" stroke="{EDGE}"/>'
+def t(x, y, value, size=13, color=INK, *, bold=False, anchor='start', cls='', attrs=''):
+    return (f'<text x="{x:g}" y="{y:g}" font-size="{size:g}" fill="{color}" '
+            f'text-anchor="{anchor}" font-weight="{700 if bold else 400}" class="{cls}" {attrs}>{escape(str(value))}</text>')
 
 
-def typed_header(index, width, mobile, animated):
-    label, cwd, command = COMMANDS[index]
-    x, font = (15, 14) if mobile else (28, 17)
-    tab = (f'<rect width="{width}" height="28" fill="{BAR}"/>'
-           f'<path d="M0 .5H{width} M0 27.5H{width}" stroke="{EDGE}"/>'
-           f'<rect x="{x}" y="5" width="21" height="18" rx="2" fill="{MINT if index==0 else "#344d3e"}"/>'
-           + text(x+6,18,str(index),12,BG if index==0 else GREEN,True)
-           + text(x+30,19,label,14,TEXT,True)
-           + text(width-x,18,'tmux / zsh' if not index else cwd,12,MUTED,end=True))
-    cell = round(font*.60,2)
-    prefix = '❯' if mobile and index==3 else cwd+' ❯'
-    left = x+(len(prefix)+1)*cell
-    length = round(len(command)*cell,2)
-    baseline = 61 if mobile else 67
-    start = [1.5, 3.3, 6, 8.5, 11][index]
-    finish = start + len(command)*.62
-    steps = f'steps({len(command)},end)'
-    css = ''
+def rect(x,y,w,h,fill,extra=''):
+    return f'<rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}" fill="{fill}" {extra}/>'
+
+
+def path(d, color=BORDER, width=1, extra=''):
+    return f'<path d="{d}" fill="none" stroke="{color}" stroke-width="{width}" {extra}/>'
+
+
+def link(url, content, label):
+    target='' if url.startswith('#') else ' target="_blank" rel="noopener"'
+    return f'<a href="{escape(url,quote=True)}"{target} aria-label="{escape(label,quote=True)}"><title>{escape(label)}</title>{content}</a>'
+
+
+def icon(kind,x,y,r=6,color=MINT):
+    if kind=='gemini':
+        shape='<path d="M0 -7Q1 -1 7 0Q1 1 0 7Q-1 1 -7 0Q-1 -1 0 -7Z" fill="currentColor"/>'
+    elif kind=='openai':
+        shape=(path('M0 -7L6 -3.5V3.5L0 7L-6 3.5V-3.5Z M-3 -2L0 -4L3 -2V2L0 4L-3 2Z','currentColor',1.25))
+    else:
+        shape=''.join(path('M0 -6.5V-2','currentColor',1.5,f'transform="rotate({angle})"') for angle in range(0,360,45))
+    return f'<g transform="translate({x} {y}) scale({r/7:.3f})" color="{color}">{shape}</g>'
+
+
+def spinner(x,y,key,animated):
+    # Braille glyphs as vector dots: identical metrics even on systems without a Braille font.
+    pts=[(0,0),(0,3),(0,6),(3,0),(3,3),(3,6),(0,9),(3,9)]
+    glyphs=[]
+    for i,ch in enumerate(BRAILLE if animated else BRAILLE[:1]):
+        bits=ord(ch)-0x2800
+        dots=''.join(f'<circle cx="{px+2}" cy="{py+2}" r="1.25" fill="{MINT}"/>' for b,(px,py) in enumerate(pts) if bits&(1<<b))
+        glyphs.append(f'<g transform="translate(0 {i*14})">{dots}</g>')
+    return (f'<svg x="{x}" y="{y-12}" width="9" height="14" viewBox="0 0 9 14" overflow="hidden">'
+            f'<title>{BRAILLE[0]}</title><g class="spin" id="spin-{key}">'+''.join(glyphs)+'</g></svg>')
+
+
+def command(x,y,cmd,size=14,typed=False,animated=True):
+    cell=size*.6
+    n=len(cmd)
+    width=n*cell
+    tokens=[]
+    for token in re.finditer(r'\S+',cmd):
+        val=token[0]
+        color=MINT if token.start()==0 else DIM if val in ('|','--user','-5','--graph') else INK
+        tokens.append(t(token.start()*cell,0,val,size,color,attrs=f'textLength="{len(val)*cell:.2f}" lengthAdjust="spacingAndGlyphs"'))
+    prefix=t(x,y,'❯',size,MID,bold=True)
+    content=''.join(tokens)
+    if typed:
+        content=(f'<defs><clipPath id="type-mask"><rect y="{-size}" width="{width+1}" height="{size+5}" '
+                 f'class="reveal"/></clipPath></defs><g clip-path="url(#type-mask)">{content}</g>'
+                 f'<g class="type-caret" style="transform:translateX({width}px)">'
+                 +rect(2,-size+3,6,size,MINT,'class="blink"')+'</g>')
+    return prefix+f'<g transform="translate({x+17} {y})">{content}</g>'
+
+
+def stylesheet(animated):
+    base=('text{font-family:'+FONT+'}a{text-decoration:none}a:hover .ref{text-decoration:underline}'
+          '.note{font-style:italic}.fold-show{display:none}#thoughts-folded:target~g .thoughts{display:none}'
+          '#thoughts-folded:target~g .fold-show{display:inline}#thoughts-folded:target~g .fold-hide{display:none}')
     if animated:
-        def keys(prop, first, last):
-            return (f'0%,{start}%{{{prop}:{first};animation-timing-function:{steps}}}'
-                    f'{finish}%,100%{{{prop}:{last}}}')
-        css = ('<style>@keyframes type{' + keys('transform','scaleX(0)','scaleX(1)') + '}'
-               '@keyframes travel{' + keys('transform','translateX(0)',f'translateX({length}px)') + '}'
-               '@media (prefers-reduced-motion:no-preference){'
-               '.reveal{animation:type 9.6s linear infinite}.carriage{animation:travel 9.6s linear infinite}}'
-               '</style>')
-    tokens = []
-    for token in re.finditer(r'\S+',command):
-        word = token[0]
-        color = GREEN if token.start()==0 else AMBER if word.startswith('-') else MINT if word=='|' else TEXT
-        tokens.append(f'<text x="{token.start()*cell:.2f}" y="0" font-size="{font}" fill="{color}" '
-                      f'textLength="{len(word)*cell:.2f}" lengthAdjust="spacingAndGlyphs">{escape(word)}</text>')
-    clip = (f'<defs><clipPath id="typed"><rect class="reveal" y="{-font}" width="{length+1}" '
-            f'height="{font+6}"/></clipPath></defs>')
-    typed = (text(x,baseline,prefix,font,MINT,True)
-             + f'<g transform="translate({left} {baseline})">{clip}<g clip-path="url(#typed)">'
-             + ''.join(tokens) + '</g>'
-             + f'<g class="carriage" style="transform:translateX({length}px)"><rect x="1" y="{-font+3}" '
-               f'width="{max(3,round(cell*.64))}" height="{font}" fill="{MINT}"/></g></g>')
-    return css+tab+typed+(ascii_cat(mobile,animated) if index==3 else '')
+        base+=('@media(prefers-reduced-motion:no-preference){'
+               '.reveal{animation:typing 1.05s steps(15,end) .06s both}'
+               '.type-caret{animation:travel 1.05s steps(15,end) .06s both}'
+               '.blink{animation:blink 1.1s steps(1,end) infinite}'
+               '.spin{animation:spin 1.4s steps(10,end) infinite}'
+               '.open-eye{animation:eye 4.7s step-end infinite}.closed-eye{animation:lid 4.7s step-end infinite}'
+               '.paw-long{animation:paw 4.7s step-end infinite}.paw-short{animation:rest 4.7s step-end infinite}'
+               '.prey{animation:prey 4.7s step-end infinite}'
+               '.sweep{animation:sweep 5.4s linear 1.15s infinite}'
+               '.restore{animation:restore .32s ease-out var(--delay,.14s) backwards}'
+               '.note{animation:stream .22s ease-out var(--delay,1.1s) backwards}}'
+               '@keyframes typing{from{transform:scaleX(0)}to{transform:scaleX(1)}}'
+               '@keyframes travel{from{transform:translateX(0)}to{transform:translateX(126px)}}'
+               '@keyframes blink{50%{opacity:0}}@keyframes spin{to{transform:translateY(-140px)}}'
+               '@keyframes eye{0%,97%{opacity:1}94%{opacity:0}}@keyframes lid{0%,97%{opacity:0}94%{opacity:1}}'
+               '@keyframes sweep{0%{transform:translateX(70px)}36%,100%{transform:translateX(-2px)}}'
+               '@keyframes paw{0%,70%{opacity:0}40%{opacity:1}}@keyframes rest{0%,70%{opacity:1}40%{opacity:0}}'
+               '@keyframes prey{0%,80%{transform:translateX(5px)}40%{transform:translateX(0)}70%{transform:translateX(-14px)}}'
+               '@keyframes restore{from{opacity:.35}to{opacity:1}}@keyframes stream{from{opacity:0}to{opacity:1}}')
+    return '<style>'+base+'</style>'
 
 
-def output(body, index):
-    # Each linked SVG is a separate document on GitHub. Give sibling rows the same entrance.
-    wait = (1.5,3.3,6,8.5,11)[index]*.096 + len(COMMANDS[index][2])*.05952
-    initial = '.72' if index>=3 else '.28'
-    return (f'<style>@keyframes printout{{from{{opacity:{initial}}}to{{opacity:1}}}}'
-            f'@media (prefers-reduced-motion:no-preference){{.out{{animation:printout .16s ease-out {wait:.2f}s backwards}}}}</style>'
-            f'<g class="out">{body}</g>')
+# A pixel alphabet gives the title a portable silhouette independent of installed fonts.
+GLYPHS={'I':['11111','00100','00100','00100','00100','00100','11111'],
+        'n':['00000','00000','11110','11011','11011','11011','11011'],
+        's':['00000','00000','01111','11000','01110','00011','11110'],
+        'a':['00000','00000','01110','00011','01111','11011','01111'],
+        'e':['00000','00000','01110','11011','11111','11000','01111']}
+def wordmark(x,y,w):
+    d=[]
+    for k,ch in enumerate('Insaneeee'):
+        for j,row in enumerate(GLYPHS[ch]):
+            for run in re.finditer('1+',row):
+                d.append(f'M{k*6+run.start()} {j}h{len(run[0])}v1h-{len(run[0])}Z')
+    letters=''.join(d)
+    mark=['10001','00100','01110','10001','00100']
+    pixels=''.join(rect(59+i,j+.35,1,1,MID) for j,row in enumerate(mark) for i,q in enumerate(row) if q=='1')
+    return (f'<g transform="translate({x} {y}) scale({w/65:.4f})"><defs>'
+            '<filter id="phosphor" x="-9%" y="-45%" width="118%" height="200%">'
+            f'<feDropShadow dx="0" dy="0" stdDeviation=".34" flood-color="{MINT}" flood-opacity=".36"/></filter>'
+            f'<clipPath id="letters"><path d="{letters}"/></clipPath>'
+            f'<linearGradient id="shine"><stop stop-color="{MINT}" stop-opacity="0"/>'
+            '<stop offset=".55" stop-color="#dbf8e7"/><stop offset="1" stop-color="#a4dfc0" stop-opacity="0"/></linearGradient>'
+            f'</defs><path d="{letters}" fill="#345746" transform="translate(.4 .5)"/>'
+            f'<path d="{letters}" fill="{MINT}" filter="url(#phosphor)"/>'
+            '<g clip-path="url(#letters)"><g transform="translate(0 0)">'
+            '<path class="sweep" style="transform-box:fill-box;transform:translateX(120px)" '
+            'd="M-11 -1H0L-2 8H-13Z" fill="url(#shine)"/></g></g>'+pixels+'</g>')
 
 
-def badge_row(x, mobile):
-    result = ''
-    left, y = x, 46
-    for i,(mark,label,color) in enumerate(BADGES):
-        if mobile and i==2:
-            left, y = x, y+31
-        length = 43 + len(label)*7
-        result += (f'<rect x="{left}" y="{y-17}" width="{length}" height="24" rx="3" fill="{BAR}" stroke="{EDGE}"/>'
-                   f'<rect x="{left}" y="{y-17}" width="27" height="24" rx="2" fill="{color}"/>'
-                   + text(left+5,y,mark,13,BG,True) + text(left+35,y,label,13,TEXT))
-        left += length+8
-    return result
+@dataclass
+class Item:
+    top:float
+    bottom:float
+    svg:str
 
 
-def commit_row(rows, i, width, x, font, mobile):
-    row = rows[i]
-    node = x+5
-    left = node + (17 if mobile else 24)
-    line_height = 20 if mobile else 22
-    title_lines = wrapped(row['title'],int((width-left-x)/(font*.63)))
-    ref = row['repo']+'/'+row['branch']
-    ref_font = 12 if mobile else 13
-    ref_limit = int((width-left-x-18)/(ref_font*.63))
-    ref_lines = wrapped(ref,ref_limit) if mobile or len(ref)>45 else [ref]
-    inline_ref = not mobile and len(ref)<=45
-    last_y = 23+line_height*len(title_lines)
-    ref_y = last_y+21
-    height = last_y+16 if inline_ref else ref_y+16+(len(ref_lines)-1)*17
-    older = i+1<len(rows) and rows[i+1]['sha'] in row.get('parents',()) and rows[i+1]['repo']==row['repo']
-    newer = i>0 and row['sha'] in rows[i-1].get('parents',()) and rows[i-1]['repo']==row['repo']
-    body = ''
-    if newer:
-        body += f'<path d="M{node} 0V17" stroke="{MINT}" stroke-width="2"/>'
-    if older:
-        body += f'<path d="M{node} 17V{height}" stroke="{MINT}" stroke-width="2"/>'
-    body += (f'<circle cx="{node}" cy="17" r="4.5" fill="{GREEN if i==0 else BG}" stroke="{MINT}" stroke-width="2"/>'
-             + text(left,22,row['sha'][:7],font,AMBER,True)
-             + text(width-x,21,datetime.fromisoformat(row['time']).strftime('%m-%d %H:%M'),12,MUTED,end=True))
-    for k,line in enumerate(title_lines):
-        body += text(left,23+(k+1)*line_height,line,font,TEXT)
-    ref_x = left+font*5.4 if inline_ref else left
-    for k,line in enumerate(ref_lines):
-        y = 21 if inline_ref else ref_y+k*17
-        if k==0:
-            body += f'<path d="M{ref_x} {y-9}l5 5-5 5" fill="none" stroke="{MINT}" stroke-width="1.5"/>'
-        body += text(ref_x+11,y,line,ref_font,MINT)
-    if i+1<len(rows):
-        body += f'<path d="M{left} {height-.5}H{width-x}" stroke="#26392e"/>'
-    return height,body
+class Pane:
+    def __init__(self,width,name,number,*,focus=False,delay=.0):
+        self.w,self.name,self.num,self.focus,self.delay=width,name,number,focus,delay
+        self.items=[]
+        self.h=0
+        self.targets=[]
+
+    def add(self,top,bottom,svg):
+        self.items.append(Item(top,bottom,svg))
+        self.h=max(self.h,bottom)
+
+    def target(self,key,top,bottom,url,alt):
+        self.targets.append((key,top,bottom,url,alt))
+
+    def render(self,x,y,start,end):
+        if y+self.h<=start or y>=end:
+            return ''
+        edge=MINT if self.focus else BORDER
+        frame=rect(.5,.5,self.w-1,self.h-1,PANEL,f'fill-opacity=".88" stroke="{edge}" stroke-width="1"')
+        chrome=(rect(1,1,self.w-2,28,BAR)+path(f'M1 29H{self.w-1}')+
+                rect(12,9,8,8,edge,'rx="1"')+t(28,19,f'{self.num:02} / {self.name}',12,INK,bold=True)+
+                t(self.w-14,19,'FOCUSED' if self.focus else ('' if self.num==3 else 'zsh'),10,MINT if self.focus else DIM,anchor='end'))
+        visible=''.join(i.svg for i in self.items if y+i.bottom>start and y+i.top<end)
+        return (f'<g transform="translate({x} {y})" class="restore" style="--delay:{self.delay}s">'
+                +frame+(chrome if start<y+30 else '')+visible+'</g>')
 
 
-def render_terminal(data, assets, calendar, write):
-    from collections import Counter
-    from datetime import date
-    end = datetime.fromisoformat(data['end']).date()
-    first = date.fromisoformat(data['start'])
-    rows = data['commits']
-    recent = rows[:5]
-    counts = Counter(r['time'][:10] for r in rows)
-    stats = f"{len(rows)} commits · {len(counts)} active days · {len({r['repo'] for r in rows})} repos"
-    period = f'{first}..{end}'
-    path = Path(assets) / 'terminal'
-    path.mkdir(exist_ok=True)
-    daily = [f'{day}   {count:>3}' for day,count in sorted(counts.items(), reverse=True)]
-    stat_lines = [period+'  UTC+8', '本人公开非 Fork 仓库的默认分支，按关联作者和作者日期统计。', 'commits/day   0 / 1 / 2–4 / 5–9 / 10+', *daily]
-    stat_body = prompt(26,34,'~/src','cat activity/stat',17)
-    for i,line in enumerate(stat_lines):
-        stat_body += text(26,70+i*24,line,15,TEXT if i<3 else MINT)
-    write(path/'stat.svg',svg(670,93+24*len(stat_lines),stat_body))
+def watermark(x,y,kind):
+    rows = (['       .','      /|','   .-/:\\-.','< ::: + ::: >',"   '-\\:/-'","      \\|",'       ˙']
+            if kind=='star' else ['   .----.','  / .--. \\',' / / /\\ \\ \\',' \\ \\ \\/ / /','  \\ \'--\' /',"   '----'"])
+    return '<g opacity=".05">'+''.join(t(x,y+i*11,r,15,MINT,attrs='xml:space="preserve"') for i,r in enumerate(rows))+'</g>'
 
-    for mobile in (False, True):
-        width, x, font = (360,15,14) if mobile else (864,28,16)
-        suffix = '-mobile' if mobile else ''
-        def put(stem,height,body,bottom=False):
-            write(path/(stem+suffix+'.svg'),svg(width,height,body+frame(width,height,bottom)))
-        def put_result(stem,height,body,index,bottom=False):
-            put(stem,height,body,bottom)
-            put(stem+'-print',height,output(body,index),bottom)
-        for idx,(name,_,_) in enumerate(COMMANDS):
-            for animated in (False,True):
-                header_height = (80 if mobile else 91) if idx==3 else (72 if mobile else 80)
-                put('pane-'+name+('' if animated else '-still'),header_height,typed_header(idx,width,mobile,animated))
 
-        bio = text(x,17,'给 Minecraft 写模组，给 FGO 算伤害。',font,TEXT)+badge_row(x,mobile)
-        put_result('bio',99 if mobile else 70,bio,1,True)
+def date_of(value):
+    return datetime.fromisoformat(value.replace('Z','+00:00'))
 
-        head = text(x,19,stats,font,GREEN,True)
-        head += text(x if mobile else width-x,39 if mobile else 18,period,12,MUTED,end=not mobile)
-        chart_y = 49 if mobile else 31
-        chart = calendar(first,end,counts,mobile)
-        w,h = map(int,re.search(r'viewBox="0 0 (\d+) (\d+)"',chart).groups())
-        chart_h = round((width-2*x)*h/w)
-        head += chart.replace('<svg ',f'<svg x="{x}" y="{chart_y}" width="{width-2*x}" height="{chart_h}" ',1)
-        base_y=chart_y+chart_h+21
-        head += text(x,base_y,'↳ --stat',13,MINT)
-        head += text(width-x-83,base_y,'−',12,MUTED)
-        for k,color in enumerate(('#24362e','#3e7958','#5eac71','#97d588','#d7ed9f')):
-            head += f'<rect x="{width-x-69+12*k}" y="{base_y-9}" width="9" height="9" fill="{color}"/>'
-        head += text(width-x,base_y,'+',12,MUTED,end=True)
-        put_result('overview',base_y+16,head,2,True)
 
-        for i in range(len(recent)):
-            height,body = commit_row(recent,i,width,x,font,mobile)
-            put_result('commit-'+str(i+1),height,body,3,i==len(recent)-1)
-        if not recent:
-            put_result('empty-log',41,text(x,23,'(no commits)',font,MUTED),3,True)
-        for i,project in enumerate(PROJECTS):
-            branch = '└──' if i==len(PROJECTS)-1 else '├──'
-            body = text(x,23,branch,font,MUTED)+text(x+font*2.8,23,project+'/',font,MINT,True)
-            put_result('repo-'+project,39 if mobile else 36,body,4)
-        put('prompt',43,prompt(x,26,'~/src','',font)+text(x+font*5,26,'▌',font,GREEN),True)
+def identity(w,animated):
+    p=Pane(w,'identity',1,focus=True)
+    pad=17
+    p.add(46,62,command(pad,58,'whoami | figlet',14,True,animated))
+    logo_w=min(w-44,462)
+    p.add(74,74+logo_w/65*8,wordmark(pad+2,74,logo_w))
+    y=round(77+logo_w/65*8)+24
+    p.add(y-15,y+2,command(pad,y,'cat ~/.plan'))
+    p.add(y+9,y+27,t(pad,y+25,'给 Minecraft 写模组，给 FGO 算伤害。',15,INK))
+    y+=58
+    p.add(y-15,y+2,command(pad,y,'fastfetch --logo none'))
+    p.add(y+7,y+34,t(pad,y+25,'Stack',12,DIM)+t(pad+62,y+25,'TypeScript / JavaScript / C#',13))
+    agents=t(pad,y+48,'Agents',12,DIM)
+    cx=pad+65
+    for sym,caption in [('gemini','Gemini'),('openai','OpenAI'),('claude','Claude (RIP)')]:
+        agents+=icon(sym,cx,y+43,5.2)+t(cx+10,y+48,caption,12,MINT if sym!='claude' else DIM)
+        cx+=len(caption)*7.2+25
+    p.add(y+34,y+51,agents)
+    p.add(y+56,y+75,t(pad,y+71,'Fuel',12,DIM)+t(pad+62,y+71,'40% Coffee / 60% Tokens',13))
+    y+=99
+    p.add(y-10,y+2,path(f'M{pad} {y-8}H{w-pad}'))
+    heading=t(pad+32,y+24,'Thinking... (1.4s)',14,MINT,bold=True)
+    p.add(y+6,y+27,spinner(pad+17,y+24,'thoughts',animated)
+          +'<g class="fold-hide">'+link('#thoughts-folded',t(pad,y+24,'▾',14,MINT)+heading,'Fold thinking log')+'</g>'
+          +'<g class="fold-show">'+link('#thoughts-open',t(pad,y+24,'▸',14,MINT)+heading,'Expand thinking log')+'</g>')
+    y+=47
+    first=y
+    for i,note in enumerate(NOTES):
+        lines=wrap(note,int((w-pad*2-13)/(11.5*.62)))
+        text=''.join(t(pad+13,y+j*16,line,11.5,DIM,cls='note',attrs=f'style="--delay:{1.12+i*.19}s"') for j,line in enumerate(lines))
+        p.add(y-13,y+len(lines)*16,'<g class="thoughts">'+text+'</g>')
+        y+=16*len(lines)+4
+    p.add(first-12,y-9,'<g class="thoughts">'+path(f'M{pad+2} {first-11}V{y-10}',BORDER,2)+'</g>')
+    p.h=y+10
+    p.items.insert(0,Item(144,235,watermark(w-151,164,'star')))
+    return p
 
-    def heading(i):
-        label,_,cmd = COMMANDS[i]
-        name = 'pane-'+label
-        alt = cmd+(' · ASCII 小猫抓光标' if i==3 else '')
-        return picture(name,alt,still=(name+'-still','svg'))
-    def result(name,alt,link=None):
-        return picture(name+'-print',alt,link,still=(name,'svg'))
-    panes = [
-        [heading(0),picture('wordmark','1nsaneeee · 写点工具，也做游戏。',banner=True,still=('wordmark','png'))],
-        [heading(1),result('bio','给 Minecraft 写模组，给 FGO 算伤害。TypeScript · JavaScript · C# · zsh')],
-        [heading(2),result('overview',stats+' · '+period+' · 查看按日统计','./assets/terminal/stat.svg')],
-        [heading(3)], [heading(4)]
-    ]
-    for i,row in enumerate(recent):
-        desc = f"{row['sha'][:7]} · {row['title']} · {row['repo']}/{row['branch']} · {row['time'][:10]}"
-        panes[3].append(result('commit-'+str(i+1),desc,row['url']))
-    if not recent:
-        panes[3].append(result('empty-log','没有公开提交'))
-    panes[4].extend(result('repo-'+p,p+'/',PROFILE+'/'+p) for p in PROJECTS)
-    panes[4].append(picture('prompt','~/src ❯'))
-    return '\n\n'.join('<p>'+''.join(group)+'</p>' for group in panes)+'\n'
+
+def process_pane(w,data,animated):
+    p=Pane(w,'processes',2,delay=.14); x=16
+    end=date_of(data['end']).date()
+    recent=Counter(r['repo'] for r in data['commits'] if 0<=(end-date_of(r['time']).date()).days<30)
+    projects=list(PROJECTS)
+    if 'repositories' in data:
+        available={r['name']:r for r in data['repositories']}
+        projects=[name for name in PROJECTS if name in available]
+        extras=sorted((name for name,r in available.items() if not r['fork'] and name not in projects and name!='1nsaneeee'),
+                      key=lambda name:(-recent[name],name.lower()))
+        projects=(projects+extras)[:len(PROJECTS)]
+    peak=max([recent[name] for name in projects]+[1])
+    p.add(42,62,command(x,58,'ps -u $USER'))
+    state_x,bar_x=w-146,w-89
+    p.add(68,83,t(x,79,'PROCESS',10,DIM)+t(state_x,79,'STAT',10,DIM)+t(bar_x,79,'ACT / 30d',10,DIM))
+    y=88
+    for i,name in enumerate(projects):
+        n=recent[name]; on=bool(n); count=max(1,round(7*n/peak)) if on else 0
+        label=shorten(name,int((state_x-x-12)/(13*.62)))
+        row=t(x,y+25,label,13,INK,cls='ref')+t(state_x,y+25,'RUN' if on else 'IDLE',11.5,MINT if on else DIM)
+        row+=''.join(rect(bar_x+k*7,y+17,5,8,MID if k<count else BORDER) for k in range(7))
+        row+=t(w-x,y+25,str(n),10.5,DIM,anchor='end')
+        row+=path(f'M{x} {y+40}H{w-x}',BAR)
+        # The link is on both SVG text and the native Markdown strip.
+        url=PROFILE+'/'+name
+        p.add(y,y+46,link(url,row,name))
+        p.target(f'repo-{i}',y,y+46,url,f"{name} · {'RUN' if on else 'IDLE'} · {n} commits / 30d")
+        y+=46
+    y+=26
+    p.add(y-18,y+2,command(x,y,'systemctl --user list-units "*ai*"',12.5))
+    for i,(key,name,status) in enumerate([('gemini','Gemini','active (thinking)'),('openai','OpenAI','active (coding)'),('claude','Claude','failed (banned)')]):
+        yy=y+26+i*23; col=RED if key=='claude' else MINT
+        row=t(x,yy,'×' if key=='claude' else '●',12,col)+icon(key,x+26,yy-4,5.5,col)
+        row+=t(x+39,yy,name,13,INK if key!='claude' else RED)+t(x+114,yy,status,12,col)
+        if key=='gemini': row+=spinner(x+245,yy,'gemini',animated)
+        p.add(yy-14,yy+3,row)
+    y+=103
+    p.add(y-15,y+2,command(x,y,'cat .env.local'))
+    for i,(name,value,status) in enumerate(ENV):
+        yy=y+24+i*20
+        key=f'{name}_KEY="{value}"'
+        usable=w-2*x-90
+        size=min(11,usable/(len(key)*.61))
+        body=t(x,yy,key,max(10,size),DIM,attrs=f'textLength="{min(usable,len(key)*size*.60):.2f}" lengthAdjust="spacingAndGlyphs"')
+        body+=t(w-x,yy,status,10.5,RED if name=='CLAUDE' else MINT,anchor='end',bold=True)
+        p.add(yy-13,yy+3,body)
+    p.h=y+89
+    p.items.insert(0,Item(195,288,watermark(w-115,206,'hex')))
+    return p
+
+
+
+
+def calendar_pane(w,data,calendar):
+    p=Pane(w,'activity / 365d',3,delay=.24); x=16
+    rows=data['commits']; counts=Counter(r['time'][:10] for r in rows)
+    first=date.fromisoformat(data['start']); last=date_of(data['end']).date()
+    p.add(42,62,command(x,58,'cat activity/365d.ansi'))
+    fields=[(len(rows),'commits'),(len(counts),'active days'),(len({r['repo'] for r in rows}),'repos')]
+    for i,(n,label) in enumerate(fields):
+        xx=x+i*(w-2*x)/3
+        p.add(76,127,t(xx,101,str(n),29,MINT if i==0 else INK,bold=True)+t(xx,121,label,11,DIM))
+    p.add(133,153,t(x,148,f'{first} .. {last}',11,DIM))
+    stock=ET.fromstring(calendar(first,last,counts,True))
+    _,_,cw,ch=map(int,stock.get('viewBox').split())
+    s=(w-2*x)/cw
+    top=163
+    # Split by calendar row so a README slice embeds only cells it actually displays.
+    bands={}
+    for item in stock.iter():
+        tag=item.tag.rsplit('}',1)[-1]
+        if tag=='text':
+            xx,yy=float(item.get('x')),float(item.get('y'))
+            bounds=(yy-11,yy+2); content=t(xx,yy,item.text or '',10,DIM)
+        elif tag=='rect' and 'data-date' in item.attrib:
+            xx,yy,ww,hh=[float(item.get(attr)) for attr in ('x','y','width','height')]
+            day=item.get('data-date'); count=item.get('data-count')
+            bounds=(yy,yy+hh);content=(f'<rect x="{xx:g}" y="{yy:g}" width="{ww:g}" height="{hh:g}" rx="1.5" '
+                        f'fill="{item.get("fill")}" data-date="{day}" data-count="{count}"><title>{day} · {count}</title></rect>')
+        else:
+            continue
+        bands.setdefault(bounds,[]).append(content)
+    for (a,b),parts in bands.items():
+        p.add(top+a*s,top+b*s,f'<g transform="translate({x} {top}) scale({s:.5f})">'+''.join(parts)+'</g>')
+    foot=round(top+ch*s)+17
+    p.add(foot-14,foot+4,t(x,foot,'0',10,DIM)+''.join(rect(x+12+k*12,foot-9,9,9,c) for k,c in enumerate(
+          ('#24362e','#395c4b','#4a836c','#70af93','#a1dbc0')))+t(x+78,foot,'10+',10,DIM))
+    p.h=foot+56
+    return p
+
+
+def age(value,end):
+    secs=max(0,int((end-date_of(value)).total_seconds()))
+    for scale,suffix in [(86400,'d'),(3600,'h'),(60,'m')]:
+        if secs>=scale: return f'{secs//scale}{suffix} ago'
+    return 'now'
+
+
+def diff_bar(stats):
+    if not stats or 'additions' not in stats or 'deletions' not in stats:
+        return ''
+    plus,minus=stats['additions'],stats['deletions']
+    if not plus+minus: return '·····'
+    positives=round(5*plus/(plus+minus))
+    if plus and minus: positives=max(1,min(4,positives))
+    return '+'*positives+'−'*(5-positives)
+
+
+def cat(x,y,animated):
+    head=t(0,0,r'/\_/\ ',11,MID)
+    eyes=t(-1,11,'( o.o )',11,MINT,cls='open-eye')
+    if animated:
+        eyes+=t(-1,11,'( -.- )',11,MINT,cls='closed-eye',attrs='opacity="0"')
+    paw=t(4,22,'>o',11,MID,cls='paw-short')
+    if animated:
+        paw+=t(4,22,'>---o',11,MID,cls='paw-long',attrs='opacity="0"')
+    paw+=rect(40,14,4,9,MINT,'class="prey"')
+    return f'<g transform="translate({x} {y})">{head}{eyes}{paw}</g>'
+
+
+def journal(w,data,animated):
+    p=Pane(w,'commits.log',4,delay=.33); x=16; left=x+19
+    p.add(43,61,command(x,58,'git log -5 --graph'))
+    rows=data['commits'][:5]; y=98; end=date_of(data['end'])
+    for i,row in enumerate(rows):
+        sha=row['sha']; meta_y=y+16
+        title=wrap(row['title'],int((w-left-x)/(13.5*.62)))
+        if len(title)>2:
+            title=[title[0],shorten(' '.join(title[1:]),int((w-left-x)/(13.5*.62)))]
+        height=41+18*len(title)
+        node=x+3
+        lines=''
+        if i and rows[i-1]['repo']==row['repo'] and sha in rows[i-1].get('parents',[]):
+            lines+=path(f'M{node} {y}V{meta_y-4}',MID,1.5)
+        if i+1<len(rows) and rows[i+1]['repo']==row['repo'] and rows[i+1]['sha'] in row.get('parents',[]):
+            lines+=path(f'M{node} {meta_y-4}V{y+height}',MID,1.5)
+        lines+=f'<circle cx="{node}" cy="{meta_y-4}" r="3.8" fill="{MINT if i==0 else PANEL}" stroke="{MID}" stroke-width="1.5"/>'
+        lines+=t(left,meta_y,sha[:7],13,MINT,bold=True)
+        xx=left+66; max_ref=max(8,int((w-xx-100)/6.4))
+        capsule='['+shorten(row['repo'],min(21,max_ref-2))+']'
+        capw=cells(capsule)*6.6+9
+        lines+=rect(xx,meta_y-12,capw,16,BAR,f'rx="2" stroke="{BORDER}"')+t(xx+4,meta_y,capsule,11,DIM)
+        lines+=t(w-x,meta_y,age(row['time'],end),11,DIM,anchor='end')
+        for j,line in enumerate(title):
+            lines+=t(left,y+38+18*j,line,13.5,INK,cls='ref')
+        stats=row.get('stats'); bars=diff_bar(stats)
+        if bars:
+            sy=y+height-4
+            lines+=('<g><title>'+escape(f"+{stats['additions']} / -{stats['deletions']}")+'</title>'
+                    +t(w-x-46,sy,f"+{stats['additions']} −{stats['deletions']}",10.5,DIM,anchor='end')
+                    +t(w-x,sy,bars,12,MID,anchor='end')+'</g>')
+        lines+=path(f'M{left} {y+height-.5}H{w-x}',BAR)
+        if row.get('ai'):
+            lines+=icon(row['ai'],left+3,y+height-7,3,LOW)
+        desc=f"{sha[:7]} · {row['repo']}/{row['branch']} · {row['title']} · {row['time'][:10]}"
+        p.add(y,y+height,link(row['url'],lines,desc))
+        p.target(f'commit-{i}',y,y+height,row['url'],desc)
+        y+=height
+    if not rows:
+        p.add(y,y+30,t(x,y+17,'(no public commits)',13,DIM));y+=30
+    p.h=y+53
+    return p
+
+
+def status_bar(w,data,mobile):
+    x=15; y=20
+    body=rect(.5,.5,w-1,35 if not mobile else 61,BAR,f'stroke="{BORDER}"')
+    body+=t(x,y,'[0] 0:zsh*  1:nvim-',12,MINT,bold=True)
+    start=14 if mobile else 231
+    yy=47 if mobile else 21
+    for label in ('TS','C#','Minecraft','FGO'):
+        ww=18+len(label)*7
+        body+=f'<path d="M{start} {yy-13}h{ww-6}l6 8-6 8H{start}Z" fill="#294236"/>'
+        body+=t(start+6,yy-1,label,11.5,MINT,bold=True);start+=ww+4
+    created=data.get('created_at')
+    uptime=f"{max(0,(date_of(data['end'])-date_of(created)).days)}d" if created else '—'
+    body+=t(w-x,y,'uptime '+uptime,11,DIM,anchor='end')
+    body+=t(198,20,'|',12,MINT,cls='blink')
+    comment='# crawler.note: Insaneeee / 10x dev, powered by coffee.'
+    body+=t(1,79 if mobile else 53,comment,8.5,LOW)
+    return body,85 if mobile else 60
+
+
+class Desktop:
+    def __init__(self,data,calendar,mobile,animated):
+        self.w=420 if mobile else 1080
+        self.animated=animated
+        gap=10; inside=self.w-2*gap
+        left=inside if mobile else 567
+        right=inside if mobile else inside-gap-left
+        ident=identity(left,animated); proc=process_pane(right,data,animated)
+        heat=calendar_pane(left,data,calendar); log=journal(right,data,animated)
+        y=38
+        if mobile:
+            self.panes=[]
+            for p in (ident,proc,heat,log):
+                self.panes.append((gap,y,p));y+=p.h+gap
+        else:
+            ident.h=proc.h=max(ident.h,proc.h)
+            heat.h=log.h=max(heat.h,log.h)
+            next_y=y+ident.h+gap
+            self.panes=[(gap,y,ident),(gap+left+gap,y,proc),(gap,next_y,heat),(gap+left+gap,next_y,log)]
+            y=next_y+heat.h+gap
+        self.status_y=y
+        self.status,self.status_h=status_bar(inside,data,mobile)
+        self.h=y+self.status_h+4
+        # Move both decorative footers to the real pane bottom after the two-column height is known.
+        heat.add(heat.h-27,heat.h-5,t(16,heat.h-13,'xxd: '+'Hello from Insaneeee'.encode().hex(),9.5,LOW))
+        log.add(log.h-40,log.h-5,cat(log.w-75,log.h-32,animated))
+        self.targets={}
+        for _,py,p in self.panes:
+            for key,start,end,url,alt in p.targets:
+                self.targets[key]=(py+start,py+end,url,alt)
+        # The stats hit lives in the activity title bar and precedes the first commit in both layouts.
+        py=next(py for _,py,p in self.panes if p is heat)
+        commits=data['commits']
+        stats=f"{len(commits)} commits · {len({r['time'][:10] for r in commits})} active days · {len({r['repo'] for r in commits})} repos"
+        self.targets['stats']=(py,py+46,'./assets/terminal/stat.svg',stats+' · 按日提交明细')
+        heat.add(5,25,link('https://github.com/1nsaneeee/1nsaneeee/blob/main/assets/terminal/stat.svg',
+                           rect(1,1,heat.w-2,27,'transparent')+t(heat.w-15,19,'--stat ↗',11,MINT,anchor='end'),'Daily commit counts'))
+        self.description=f"Insaneeee · AI agent desktop · {len(data['commits'])} commits · {data['end'][:10]}"
+        self.bar=(t(10,23,'◆',15,MINT)+t(32,23,'hypr / 01',12,MINT,bold=True)
+                  +t(121,23,'~/workspace',12,DIM)+t(self.w-10,23,'1nsaneeee@github',12,DIM,anchor='end'))
+
+    def svg(self,start=0,end=None):
+        end=self.h if end is None else end
+        h=end-start
+        out=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.w}" height="{h}" viewBox="0 {start} {self.w} {h}" '
+             'role="group" aria-labelledby="screen-title">',f'<title id="screen-title">{escape(self.description)}</title>',
+             stylesheet(self.animated),
+             f'<defs><pattern id="dots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".8" fill="{MINT}"/></pattern></defs>',
+             '<g id="thoughts-folded"/><g id="thoughts-open"/>',rect(0,start,self.w,h,BG),
+             rect(0,start,self.w,h,'url(#dots)','opacity=".025"')]
+        if start<36:out.append(self.bar)
+        for x,y,p in self.panes:
+            out.append(p.render(x,y,start,end))
+        if end>self.status_y:
+            out.append(f'<g transform="translate(10 {self.status_y})">{self.status}</g>')
+        return ''.join(out)+'</svg>\n'
+
+
+def render_terminal(data,assets,calendar,write):
+    target=Path(assets)/'terminal'
+    dest=target/'desktop'
+    dest.mkdir(parents=True,exist_ok=True)
+    versions={}
+    for mobile in (False,True):
+        for animated in (False,True):
+            board=Desktop(data,calendar,mobile,animated)
+            suffix=('-still' if not animated else '')+('-mobile' if mobile else '')
+            versions[suffix]=board
+            write(dest/('workspace'+suffix+'.svg'),board.svg())
+    first=versions['']
+    keys=sorted(first.targets,key=lambda k:first.targets[k][0])
+    # GitHub disables nested SVG links when an SVG is used as an image. Keep each actionable
+    # output row as its own native Markdown anchor; all crops use the same scene coordinates.
+    names=[];last_key=None
+    for idx,key in enumerate(keys+['end']):
+        band='region-'+str(idx)
+        for suffix,board in versions.items():
+            start=board.targets[last_key][1] if last_key else 0
+            end=board.h if key=='end' else board.targets[key][0]
+            if end>start:
+                write(dest/(band+suffix+'.svg'),board.svg(start,end))
+            else:
+                assert end==start
+        if any((b.h if key=='end' else b.targets[key][0])>(b.targets[last_key][1] if last_key else 0) for b in versions.values()):
+            caption=(first.description+' · 给 Minecraft 写模组，给 FGO 算伤害。TypeScript / JavaScript / C#。'
+                     if not idx else 'Gemini thinking · OpenAI coding · Claude failed (banned) · 模拟服务与环境变量'
+                     if key=='stats' else '365 天提交热力图 · git log --graph' if key.startswith('commit-')
+                     else 'ASCII 小猫 · tmux 会话 · 技术徽章与账号 uptime')
+            names.append((band,None,caption))
+        if key!='end':
+            for suffix,board in versions.items():
+                start,end,_,_=board.targets[key]
+                write(dest/(key+suffix+'.svg'),board.svg(start,end))
+            _,_,url,alt=first.targets[key]
+            names.append((key,url,alt))
+        last_key=key
+    parts=[]
+    for stem,url,alt in names:
+        base='./assets/terminal/desktop/'+stem
+        pic=(f'<picture><source media="(max-width: 900px) and (prefers-reduced-motion: reduce)" srcset="{base}-still-mobile.svg">'
+             f'<source media="(prefers-reduced-motion: reduce)" srcset="{base}-still.svg">'
+             f'<source media="(max-width: 900px)" srcset="{base}-mobile.svg">'
+             f'<img src="{base}.svg" alt="{escape(alt,quote=True)}" width="100%" align="top"></picture>')
+        parts.append(f'<a href="{escape(url,quote=True)}">{pic}</a>' if url else pic)
+    start=data['start'];last=data['end'][:10]
+    days=Counter(r['time'][:10] for r in data['commits'])
+    lines=[f'{start} .. {last} / UTC+8','public · non-fork · default branches',*[f'{d}    {n:>4}' for d,n in sorted(days.items(),reverse=True)]]
+    stat=''.join(t(18,32+21*i,line,13,MINT if i==0 else INK) for i,line in enumerate(lines))
+    sh=48+21*len(lines)
+    write(target/'stat.svg',f'<svg xmlns="http://www.w3.org/2000/svg" width="550" height="{sh}" viewBox="0 0 550 {sh}">'+stylesheet(False)+rect(0,0,550,sh,BG)+stat+'</svg>\n')
+    return '<p>'+''.join(parts)+'</p>\n'
