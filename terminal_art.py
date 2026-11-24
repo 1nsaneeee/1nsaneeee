@@ -33,12 +33,55 @@ def prompt(x, y, path, cmd, size):
             f'<tspan fill="{TEXT}">{escape(cmd)}</tspan></text>')
 
 
-def picture(stem, description, link=None, banner=False):
+def picture(stem, description, link=None, banner=False, still=None):
     path = './assets/' if banner else './assets/terminal/'
-    ext = 'png' if banner else 'svg'
-    tag = (f'<picture><source media="(max-width: 600px)" srcset="{path}{stem}-mobile.{ext}">'
+    ext = 'gif' if banner else 'svg'
+    static = ''
+    if still:
+        name, extension = still
+        static = (f'<source media="(max-width: 600px) and (prefers-reduced-motion: reduce)" srcset="{path}{name}-mobile.{extension}">'
+                  f'<source media="(prefers-reduced-motion: reduce)" srcset="{path}{name}.{extension}">')
+    tag = (f'<picture>{static}<source media="(max-width: 600px)" srcset="{path}{stem}-mobile.{ext}">'
            f'<img width="100%" align="top" alt="{escape(description, quote=True)}" src="{path}{stem}.{ext}"></picture>')
     return f'<a href="{escape(link, quote=True)}">{tag}</a>' if link else tag
+
+
+def cat_heading(mobile, x, font, animated):
+    if mobile:
+        heading = prompt(x, 25, '~/src', 'head -5', font) + text(x+16, 46, 'activity/commits.log', font)
+    else:
+        heading = prompt(x, 42, '~/src', 'head -5 activity/commits.log', font)
+
+    # Eyes, foreleg and cursor column for anticipation, reach, catch and release.
+    poses = [
+        (0,  'o.o', '>',         17),
+        (18, 'o.o', '>',         None),
+        (27, 'o.O', '>o',        17),
+        (38, 'o.O', '>--o',      16),
+        (44, 'O.O', '>------o',  15),
+        (53, '^.^', '>---o',     12),
+        (62, '^.^', '>o',         9),
+        (78, 'o.o', '>o',        13),
+        (85, 'o.o', '>',         17),
+    ]
+    keyframes, sprites = [], []
+    for index, (percent, eyes, paw, cursor) in enumerate(poses if animated else poses[:1]):
+        keyframes.append(f'{percent}%{{transform:translateY(-{index*64}px)}}')
+        lines = [(r'    /\_/\ ', MINT), (f'   ( {eyes} )', TEXT),
+                 ('   /   '+paw, GREEN), ('~ (_____)', MINT)]
+        sprite = ''.join(f'<text x="{run.start()*9.6:.1f}" y="{line*14}" font-size="16" fill="{color}" '
+                         f'textLength="{len(run[0])*9.6:.1f}" lengthAdjust="spacingAndGlyphs">{escape(run[0])}</text>'
+                         for line, (chars, color) in enumerate(lines, 1) for run in re.finditer(r'\S+', chars))
+        if cursor is not None:
+            sprite += f'<rect x="{cursor*9.6}" y="30" width="7" height="13" fill="{SHA}"/>'
+        sprites.append(f'<g transform="translate(0 {index*64})">{sprite}</g>')
+    style = ('<style>@keyframes catch{' + ''.join(keyframes) + '100%{transform:translateY(0)}}'
+             '@media (prefers-reduced-motion:no-preference){.cat{animation:catch 3.6s step-end infinite}}</style>') if animated else ''
+    cat_x, cat_y, w, h = (200, 0, 147, 55) if mobile else (642, 2, 180, 64)
+    cat = (f'<svg x="{cat_x}" y="{cat_y}" width="{w}" height="{h}" viewBox="0 0 180 64" overflow="hidden">'
+           f'{style}<g class="cat" xml:space="preserve" font-family="Consolas,monospace">'
+           + ''.join(sprites) + '</g></svg>')
+    return heading + cat
 
 
 def wrapped(value, limit):
@@ -104,7 +147,8 @@ def render_terminal(data, assets, calendar, write):
         head += text(x, bottom+22, '▸ --stat', font-1, MINT)
         put('overview', bottom+35, head)
 
-        put('log', 46, prompt(x, 32, '~/src', 'head -5 activity/commits.log', font))
+        for stem, animated in [('log-cat', True), ('log', False)]:
+            put(stem, 60 if mobile else 72, cat_heading(mobile, x, font, animated))
         for i, row in enumerate(rows[:5]):
             offset = x+(68 if mobile else 86)
             limit = int((width-x-offset)/(font*.64))
@@ -122,9 +166,9 @@ def render_terminal(data, assets, calendar, write):
             put('repo-'+project,32,text(x,21,branch,font,MUTED)+text(x+font*2.8,21,project+'/',font,MINT,True))
         put('prompt',52,prompt(x,30,'~/src','',font)+text(x+font*5.05,30,'▌',font,GREEN))
 
-    strips = [picture('zsh','1nsaneeee · 写点工具，也做游戏。',banner=True),
+    strips = [picture('zsh','1nsaneeee · 写点工具，也做游戏。',banner=True,still=('zsh','png')),
               picture('overview','给 Minecraft 写模组，给 FGO 算伤害。TypeScript / JavaScript / C#。'+stats+' · '+period+'；查看每日统计',stat_target),
-              picture('log','~/src ❯ head -5 activity/commits.log')]
+              picture('log-cat','~/src ❯ head -5 activity/commits.log · ASCII 小猫伸爪抓光标',still=('log','svg'))]
     for i,row in enumerate(rows[:5]):
         desc = f"{row['sha'][:7]} · {row['title']} · {row['repo']} · {row['time'][:10]}"
         strips.append(picture('commit-'+str(i+1),desc,row['url']))
