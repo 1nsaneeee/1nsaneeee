@@ -14,7 +14,7 @@ on:
       - chaldeas/fate-title.txt
       - refresh_activity.py
   schedule:
-    - cron: '17 0 * * *' # 08:17 UTC+8
+    - cron: '17 */6 * * *' # 02:17, 08:17, 14:17, 20:17 UTC+8
   workflow_dispatch:
 
 permissions:
