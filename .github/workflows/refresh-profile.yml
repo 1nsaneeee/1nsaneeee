@@ -1,6 +1,9 @@
 name: Refresh profile activity
 
 on:
+  push:
+    branches: [main]
+    paths: [coldjokeconfig]
   schedule:
     - cron: '17 0 * * *' # 08:17 in Hong Kong
   workflow_dispatch:

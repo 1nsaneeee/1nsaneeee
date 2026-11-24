@@ -92,9 +92,49 @@ def signature():
             '<g clip-path="url(#face)"><path class="glint" fill="url(#glint)" d="M-8 0h7l-2 7h-7z"/></g></g>')
 
 
+def tip_pages(config):
+    pages = []
+    for line in config.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        # Long tips continue on the following slide at the same readable font size.
+        while cells(line) > 78:
+            width = last_break = 0
+            for i, char in enumerate(line):
+                width += cells(char)
+                if width > 78:
+                    break
+                if char.isspace() or char in '，。！？；、,;.!?':
+                    last_break = i+1
+            split = last_break if last_break >= i//2 else i
+            pages.append(line[:split].rstrip())
+            line = line[split:].lstrip()
+        if line:
+            pages.append(line)
+    return pages
+
+
+def loading_tips(tips):
+    height = 30
+    body = [f'<svg x="30" y="44" width="800" height="{height}" overflow="hidden">'
+            f'<g class="{"tip-reel" if len(tips)>1 else "single-tip"}" '
+            f'style="--pages:{len(tips)};--cycle:{len(tips)*6}s;--travel:-{len(tips)*height}px">']
+    for i,tip in enumerate(tips):
+        body.append(f'<text x="400" y="{i*height+20}" text-anchor="middle" font-size="14">'
+                    f'<tspan fill="{GOLD}" class="bold">TIP › </tspan>'
+                    f'<tspan fill="{WHITE}">{escape(tip)}</tspan></text>')
+    return ''.join(body)+'</g></svg>'
+
+
 def banner(data):
     day = data['end'][:10]
-    body = [chrome(f'{OWNER}@github: ~ — zsh', f'Last login: {day} on ttys000'), signature()]
+    tips = tip_pages(Path(__file__).with_name('coldjokeconfig').read_text(encoding='utf-8-sig'))
+    body = [chrome(f'{OWNER}@github: ~ — zsh', f'Last login: {day} on ttys000')]
+    offset = 34 if tips else 0
+    if tips:
+        body.append(loading_tips(tips))
+    body.extend([f'<g transform="translate(0 {offset})">', signature()])
     for i,(x,y,s) in enumerate([(67,89,1.3),(137,60,.65),(151,130,.85),(679,53,.7),(705,117,1.12),(812,109,.7)]):
         color = (CYAN, MINT, GOLD)[i%3]
         body.append(f'<g transform="translate({x} {y}) scale({s})"><path class="star" '
@@ -112,16 +152,18 @@ def banner(data):
              '<g transform="translate(214 188)"><g clip-path="url(#type)">'
              + tx(0,0,'cat ~/.plan',15,WHITE,'textLength="90" lengthAdjust="spacingAndGlyphs"')
              + '</g><g class="caret"><rect x="2" y="-12" width="8" height="15" fill="'+MINT+'" class="blink"/></g></g>',
-             tx(24,213,'给 Minecraft 写模组，给 FGO 算伤害。',15,GRAY,'class="output"')]
+             tx(24,213,'给 Minecraft 写模组，给 FGO 算伤害。',15,GRAY,'class="output"'),'</g>']
     css = """
 .lid,.glint{opacity:0}.caret{transform:translateX(90px)}
 @media(prefers-reduced-motion:no-preference){
+.tip-reel{animation:tips var(--cycle) steps(var(--pages),end) infinite}
 .reveal{animation:type 1.08s steps(11,end) both}.caret{animation:travel 1.08s steps(11,end) both}
 .blink{animation:blink 1.1s steps(1,end) infinite}.output{animation:answer .23s ease-out 1.08s backwards}
 .eyes{animation:eyes 4s step-end infinite}.lid{animation:lid 4s step-end infinite}
 .star{animation:twinkle 3.8s ease-in-out infinite}.glint{animation:shine 7.6s ease-in-out 1.5s infinite}
 .paw{animation:reach 4s ease-in-out infinite}.mote{animation:dodge 4s ease-in-out infinite}}
 @keyframes type{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes tips{from{transform:translateY(0)}to{transform:translateY(var(--travel))}}
 @keyframes travel{from{transform:translateX(0)}to{transform:translateX(90px)}}
 @keyframes answer{from{opacity:0}to{opacity:1}}@keyframes blink{50%{opacity:0}}
 @keyframes eyes{0%,96%{opacity:1}92%{opacity:0}}@keyframes lid{0%,96%{opacity:0}92%{opacity:1}}
@@ -130,7 +172,7 @@ def banner(data):
 @keyframes twinkle{0%,55%,100%{opacity:.38}70%{opacity:1}}
 @keyframes shine{0%{opacity:1;transform:translateX(66px)}25%{opacity:1;transform:translateX(-2px)}26%,100%{opacity:0;transform:translateX(-2px)}}
 """
-    return card(OWNER+' · zsh', f'写点工具，也做游戏。给 Minecraft 写模组，给 FGO 算伤害。Last login {day}.',230,body,css)
+    return card(OWNER+' · zsh',f'写点工具，也做游戏。给 Minecraft 写模组，给 FGO 算伤害。Last login {day}.',230+offset,body,css)
 
 
 GEMINI_HALF = (
@@ -236,10 +278,11 @@ def ascii_mark(rows,color):
         for run in re.finditer('[@#]+',row):
             n=len(run[0])
             bed.append(f'M{run.start()} {i}h{n}v1h-{n}z')
-        ink.append(tx(x0+left*pitch,y+5.55,value,7.5,color,
-                      f'xml:space="preserve" font-weight="700" textLength="{len(value)*pitch:.2f}" lengthAdjust="spacingAndGlyphs"'))
+        ink.append(f'<text x="{x0+left*pitch:g}" y="{y+5.55:g}" textLength="{len(value)*pitch:.2f}" '
+                   f'lengthAdjust="spacingAndGlyphs">{escape(value)}</text>')
     return (f'<path fill="{color}" opacity=".27" transform="translate({x0:g} {y0:g}) scale({pitch} {step})" '
-            f'd="{"".join(bed)}"/>'+''.join(ink))
+            f'd="{"".join(bed)}"/><g fill="{color}" font-size="7.5" font-weight="700" xml:space="preserve">'
+            +''.join(ink)+'</g>')
 
 
 PORTRAIT_CSS = """
@@ -315,6 +358,175 @@ def languages(totals):
     return ''.join(parts)
 
 
+def game_ink():
+    # Text tiles act as the ink. Each face of the cube has its own grain direction.
+    materials = [
+        ('grass',MINT,.29,MINT,'v,"',"'v;"), ('loam','#cdab83',.29,'#cdab83','+%:','#.+'),
+        ('soil','#a2876d',.29,'#a2876d','/:#','+/.'),
+    ]
+    parts=['<defs>']
+    for name,base,opacity,ink,a,b in materials:
+        glyphs='class="bold" xml:space="preserve" textLength="10.5" lengthAdjust="spacingAndGlyphs"'
+        parts.append(f'<pattern id="ink-{name}" width="10.5" height="10" patternUnits="userSpaceOnUse">'
+                     +f'<rect width="10.5" height="10" fill="{base}" opacity="{opacity}"/>'
+                     +tx(0,4.6,a,5.6,ink,glyphs) +tx(0,9.6,b,5.6,ink,glyphs)
+                     +'</pattern>')
+    return ''.join(parts)+'</defs>'
+
+
+def game_shape(outline,ink,edge):
+    return f'<path d="{outline}" fill="url(#ink-{ink})" stroke="{edge}" stroke-width=".95" stroke-linejoin="round"/>'
+
+
+# ASCII palette and silhouette sampled from the supplied crowned Artoria portrait.
+SABER_INKS = (
+    ('A', "#f9eed7", ':'),
+    ('B', "#f8e1c4", '-'),
+    ('C', "#f8daaf", '='),
+    ('D', "#fad298", '#'),
+    ('E', "#fece8d", '/'),
+    ('F', "#f7c484", '\\'),
+    ('G', "#ebd8bf", ':'),
+    ('H', "#ebc89b", '#'),
+    ('I', "#eabb83", '/'),
+    ('J', "#e0c5aa", ':'),
+    ('K', "#c8c5ce", '.'),
+    ('L', "#e6af6f", '#'),
+    ('M', "#ddaf7c", '/'),
+    ('N', "#e0a869", '\\'),
+    ('O', "#dca465", '='),
+    ('P', "#d5a677", '#'),
+    ('Q', "#bba79f", '-'),
+    ('R', "#d09c6d", '\\'),
+    ('S', "#cc9562", '='),
+    ('T', "#b69684", '-'),
+    ('U', "#b28767", '/'),
+    ('V', "#836358", ':'),
+    ('W', "#265e57", 'o'),
+    ('X', "#419287", 'o'),
+    ('Y', "#7cd6c4", 'o'),
+    ('Z', "#343136", '='),
+    ('0', "#f2f1e5", '.'),
+)
+SABER_ROWS = (
+    '  DDPHCHMMPHCHHPHCDMRRRRRRPRRRRH',
+    '  CCPPHGPJJIHPRPDDDDPPPRPRPPRRRHHDCAH',
+    '   HJ00BRPHHHRRMDDCDPPMPPMMMPRRPBADFGJ',
+    '   00AIPRPPPRMPPMDCDPIIMPMIMPRSSIICCHJ',
+    '  00 PPSRPPRRRPMMICCIIIIMHIPPPSLLHHLCHC',
+    '  00 TPRRRMRPPPPIMCCCDDDIIMMRSOLLLIGFCEC',
+    ' 0B  ISRSUPPPRMMPDCCCDHIIHMSSSONLONLBCBFJ',
+    ' A   GPUUURPPPMHDDDDHDDDMSSSONNOONONLAACJ',
+    'AJ    JUUSRPMMIIIHDDHDPSSSSONONLOOOPINAAIH',
+    'BQ    KMUUSRPPMIDDIMRSSSONNONLONILOOIINBAIC',
+    'H      JRURRPPPRSSSSSOONNNLLONIONILOOCMNBAD',
+    'Q      HAHPUSSSUSOOOLNNNNLNLLOLIONMIONASOCBM',
+    'T     KDAHRLOOLSNNLNLLNNNLLNFLOFLONMIOHJSSIG',
+    '      JAHHOINNISLNFNLFLLLLFILFNLFNOOILOAHIRNH',
+    '      HAIONLLLINLNFLLEFEFLEEFIFNFFOOSIOHHGHM',
+    '     KBDIOLLLIMLFNEFLEFFEEFEEFFLIFIOSSLOGLBIH',
+    '     Q0LMOILLFMLELFFFEEFFEEEEEFENFFLOUNOJSHCMQ',
+    '     JANMOFNIEPNEIFFFEEEIEEEEEEELLFFOSSLMPOGJQ',
+    '     GBOLNFSFEPOEELFFEEEFFEEEIEEFSFFLSSSOQOICQQ',
+    '     GCNLLFSEEPSEELEFEDDDPDDEREEESLFFOUSSPSOCJQ',
+    '    KGHMLLFSFEPSEDFEDDDDDIMDDIREEPUFFLUSSRSSICQQ',
+    '    KGHMLLFUFEPUFDDFDDDDDDUEDDSMEIUSFFUSOSSSOBJQ',
+    '    KJHMILFUIEPRMDHEDDDDDDPRDDPRMFUSSFSSOOSOSIGKK',
+    '    KMHSHNFUOEPPRDIDEDDDDIIPPEPRRMUUOUUSOOOOPOAKG',
+    '    KPMSJOFSSEMRRDDRDDDDDMDPUTMUVVVUSUUUOONNNRCB0G',
+    '    KPPSJOISUFIRPPDRIEDDDIPTJUVZVQVUSOUSSOLLOMMG00J',
+    '    KLQSRILRRUIUURIMPIEEDPQPUUZZZQUSSFUSUONIOHSAG0K',
+    '    JLJSSJLPPSMUPTUIMMIEEEGUJUWZWVTPSFSSSSNILMPGG00G',
+    '    JLBTOUISRVTTZVTPMHMIEEJTG0XXXTPISESSSSNILOJM0G0K',
+    '   KML JOUSRUSQJVZVQTHHJIIHGGGVXVJPHSEOUSSLFIOJUAJGG',
+    '   QGO ANSVSVRT0QWXTHIHGGGJBBBJJBGMHRFNVSSLEFOJVT0UG',
+    '   KGS  IOUUVVMAQXYTHPHGBBBBBBBBBBMHPINVVONEFOHVVQGK',
+    '   KG   HNUUSVTMAVUJHPHGBBBBBBBBBBMIPINKVOPEENCVVVQQ',
+    '   QG   IMOUUPVJHJJCJPCGBBBBBBBBBBJMUIL0TUPEELBVV 0K',
+    '   KK    INSSUPTJJGGGJGBBBBBBBBBBGJSVIP KVPDDIA0000K',
+    '    K    ILLSSKTJJCGGGGBBBBBBBBBBGHUVIP  TPDDHG00KKK',
+    '    K0    FLLOKKQGGGBBBBBBBBGBBBBJUUVDQ  KPDDGJKK00K',
+    '    KG     FLLTKKKQBGGBGJBBBBBBBJVVVVDQ  0PDDGTKKKKQ',
+    '     K0    FEFMQKKKQGGGGBBBABBBJVUUVVMT  KTFDKTQQQKQ',
+    '     QA     EDDMKKKKKQGGGBBBBBJVUVVVVUVTQQTPDQKQQKKT',
+    '      K      EDCJ00KKKJQJBBBGUVUSONUUUUVQQTQPKKKKKKQ',
+    '              HCCQQQQKQQTUJMUURLFFOVVUVVQQQQQK0KKKKK',
+    '                CTQQQQQQTUUUTQQQQTZZZUUVQKKKKK000KKQ',
+    '                 MQTTTTTQ000000KQKVZZVTQQK00KK00',
+    '                 GQVTQVQK          ZZZQKK0000',
+    '                   WTT               VQKK0',
+)
+
+
+def artoria():
+    # Each cell samples the supplied FGO portrait. Draw same-ink runs together so
+    # the crown, eyes and fur retain their shape without embedding a bitmap or font.
+    tiles=['<pattern id="saber-cell" patternUnits="userSpaceOnUse" width="1" height="1" '
+           'viewBox="0 0 6 7" preserveAspectRatio="none"/>']
+    glyph_ids={}
+    faces=[]
+    for code,color,glyph in SABER_INKS:
+        runs=[]
+        for y,row in enumerate(SABER_ROWS):
+            for run in re.finditer(code+'+',row):
+                runs.append(f'M{run.start()} {y}h{len(run[0])}')
+        if not runs:
+            continue
+        if glyph not in glyph_ids:
+            glyph_ids[glyph]='char-'+str(len(glyph_ids))
+            tiles.append(tx(0,6,glyph,7,'#322727',
+                            f'id="{glyph_ids[glyph]}" font-weight="700" opacity=".23"'))
+        tile='saber-'+code
+        tiles.append(f'<pattern id="{tile}" href="#saber-cell"><path d="M0 0h6v7H0z" fill="{color}"/>'
+                     f'<use href="#{glyph_ids[glyph]}"/></pattern>')
+        faces.append(f'<path stroke="url(#{tile})" d="{"".join(runs)}"/>')
+    return ('<defs>'+''.join(tiles)+'</defs><g transform="translate(0 3) scale(2.12 2.29)" '
+            'fill="none" stroke-width="1.015">'+''.join(faces)+'</g>')
+
+
+def grass_block():
+    return ''.join([
+        # All three projected edges are 53.1 units, at 30, 150 and 270 degrees.
+        game_shape('M9 33.56L55 60.12V113.24L9 86.68Z','loam','#9b846d'),
+        game_shape('M55 60.12L101 33.56V86.68L55 113.24Z','soil','#826b57'),
+        game_shape('M9 33.56L55 7L101 33.56L55 60.12Z','grass','#84bc78'),
+        game_shape('M9 33.56L55 60.12V68L49 65V70L45 68V62L37 57V62L31 58V53L23 49V53L18 50V46L9 41Z',
+                   'grass','#76a76c'),
+        game_shape('M55 60.12L101 33.56V42L95 46V50L89 54V49L79 55V60L73 64V60L64 65V71L55 75Z',
+                   'grass','#598a61'),
+        tx(17,72,'+.',7,'#e1c099'),tx(34,80,'#',7,'#93785d'),
+        tx(65,82,'/+',7,'#c3a88b'),tx(84,69,'::',7,'#c3a88b'),
+        '<path d="M56 28l12-6 13 6-13 6z" fill="#708394" stroke="#a3b8c3"/>'
+        '<path d="M56 28l12 6v11l-12-6z" fill="#334553" stroke="#79909f"/>'
+        '<path d="M68 34l13-6v11l-13 6z" fill="#1c303e" stroke="#79909f"/>',
+        tx(58,38,'=',8,CYAN),tx(70,40,'::',7,MINT),
+        '<g class="machine-hop" stroke-linejoin="round">'
+        +box(65,10,7,7,'#e1bd96')+box(65,10,7,2,'#705438')+box(70,13,1.4,1.4,'#483c38')
+        +'<path d="M66 17h5v6h-5zM63 18h3v5h-3zM71 17h4v3h-4z" fill="#75c4cb"/>'
+        '<path d="M66 23h5v6h-2v-4h-1v4h-2z" fill="#94aacf"/></g>',
+    ])
+
+
+def game_saves():
+    parts=[game_ink(),rule(22,838,295.5),f'<path d="M431 312v118" stroke="{BORDER}"/>']
+    summaries=[]
+    saves=[
+        (24,artoria(),'阿尔托莉雅 / Saber','~/saves/chaldea','FGO · 最推 EMIYA',GOLD,
+         '2018.08.27 被骗入迦勒底。','御主 Lv.155 · 五星从者 60 骑','宝具伤害有公式，抽卡没有。'),
+        (443,grass_block(),'minecraft:grass_block','~/saves/overworld','MC · 科技水槽包爱好者',MINT,
+         'ATM · 迷厄路 · FTB Series','Mekanism · 工业先锋 · 资源蜜蜂 · AE2','喜欢在机器上蹦蹦跳跳'),
+    ]
+    for x,art,caption,slot,name,color,line1,line2,aside in saves:
+        label_x=x+124
+        summaries.append(' '.join((name,line1,line2,aside)))
+        parts.extend([f'<g transform="translate({x} 309)">{art}</g>',
+                      tx(x+54,437,caption,9,GRAY,'text-anchor="middle"'),
+                      tx(label_x,326,slot,12,GRAY),tx(label_x,352,name,16,color,'class="bold"'),
+                      tx(label_x,377,line1,14,WHITE),tx(label_x,397,line2,13,WHITE),
+                      tx(label_x,424,'# '+aside,13,GRAY,'class="dim"')])
+    return ''.join(parts),'；'.join(summaries)
+
+
 def neofetch(data):
     end = datetime.fromisoformat(data['end'])
     created = data.get('created_at')
@@ -333,11 +545,15 @@ def neofetch(data):
         if key=='gemini':
             body.append(spinner(386,y))
     body.append(languages(data.get('language_bytes',{})))
+    saves_svg,saves_desc=game_saves()
+    body.append(saves_svg)
     css=('@media(prefers-reduced-motion:no-preference){.spinner{animation:spin 1.25s steps(10,end) infinite}'
-         '.pupils{animation:glance 6.8s steps(2,end) infinite}}@keyframes spin{to{transform:translateY(-140px)}}'
+         '.pupils{animation:glance 6.8s steps(2,end) infinite}'
+         '.machine-hop{animation:hop 4.2s ease-in-out infinite}}@keyframes spin{to{transform:translateY(-140px)}}'
+         '@keyframes hop{0%,9%,26%,31%,46%,100%{transform:translateY(0)}17%{transform:translateY(-8px)}39%{transform:translateY(-5px)}}'
          '@keyframes glance{0%,66%,89%,100%{transform:translateX(0)}72%,83%{transform:translateX(5px)}}')
     desc = '; '.join(f'{key}: {value}' for key,value,_ in fields)
-    return card('neofetch · AI agents',desc+'; MEOW, Gemini, OpenAI, Claude; language share by code bytes in public non-fork repositories.',300,body,css+PORTRAIT_CSS)
+    return card('neofetch · AI agents',desc+'; MEOW, Gemini, OpenAI, Claude; '+saves_desc,453,body,css+PORTRAIT_CSS)
 
 
 def heatmap(first,last,counts):
@@ -426,6 +642,6 @@ def render_terminal(data,assets,write):
                            ('fgo-np-calculator','fgo-np-calculator','fgo-np-calculator')]:
         badges.append(f'[![{label}](./assets/badges/{file}.png)]({PROFILE}/{repo})')
     return ('![1nsaneeee · 写点工具，也做游戏](./assets/terminal/banner.svg)\n\n'
-            +' '.join(badges)+'\n\n![neofetch · Tom Chou 与 AI agents](./assets/terminal/neofetch.svg)\n\n'
+            +' '.join(badges)+'\n\n![neofetch · Tom Chou、AI agents 与 FGO / Minecraft 游戏存档](./assets/terminal/neofetch.svg)\n\n'
             +'[![365 天活跃度、最近四条提交与项目目录](./assets/terminal/activity.svg)]'
             +f'(https://raw.githubusercontent.com/{OWNER}/{OWNER}/main/assets/terminal/activity.svg)\n')
