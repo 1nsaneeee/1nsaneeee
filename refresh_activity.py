@@ -7,9 +7,13 @@ from terminal_art import render_terminal
 owner='1nsaneeee'
 base='https://api.github.com'
 def pages(path,**params):
+    headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'zsh-public-profile'}
+    token = os.environ.get('GITHUB_TOKEN')
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
     for page in range(1,1000):
         url=base+path+'?'+urlencode(dict(params,per_page=100,page=page))
-        req=Request(url,headers={'Accept':'application/vnd.github+json','User-Agent':'zsh-public-profile'})
+        req=Request(url,headers=headers)
         with urlopen(req,timeout=25) as response:
             body=json.load(response)
         if not isinstance(body,list): raise ValueError('Expected a list from '+path)
@@ -26,7 +30,7 @@ def snapshot():
         slug=repo['name']; route='/repos/'+owner+'/'+quote(slug)+'/commits'
         refs=subprocess.run(['git','ls-remote',repo['clone_url'],'refs/heads/'+repo['default_branch']],check=True,capture_output=True,text=True,timeout=30).stdout.split()
         if not refs:continue
-        rows=pages(route,sha=refs[0])
+        rows=pages(route,sha=refs[0],author=owner)
         for row in rows:
             if not row.get('author') or row['author']['login'].lower()!=owner.lower():continue
             time=datetime.fromisoformat(row['commit']['author']['date'].replace('Z','+00:00')).astimezone(zone)
