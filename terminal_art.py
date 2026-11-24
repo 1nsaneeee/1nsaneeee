@@ -133,10 +133,74 @@ def banner(data):
     return card(OWNER+' · zsh', f'写点工具，也做游戏。给 Minecraft 写模组，给 FGO 算伤害。Last login {day}.',230,body,css)
 
 
-def mascot():
+GEMINI_HALF = (
+    '+', '#', '+@+', '#@#', '.#@#.', '+@@@+', '+#@@@#+',
+    '.#@@@@@#.', '+#@@@@@@@#+', '+#@@@@@@@@@#+',
+    '.+#@@@@@@@@@@@@@#+.', '.:+#@@@@@@@@@@@@@@@@@@@#+:.',
+    '.:+##@@@@@@@@@@@@@@@@@@@@@@@@@##+:.',
+)
+GEMINI_MARK = tuple(row.center(43) for row in
+                    (*GEMINI_HALF, '..+##@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@##+..', *reversed(GEMINI_HALF)))
+OPENAI_MARK = (
+    '             .+#@@@@@#:.',
+    '           :@@@@##+#@@@@#..::::.',
+    '         .@@@+.       +@@@@@@@@@@@+.',
+    '        .@@#.       :#@@@#::..::#@@@+',
+    '        @@#      .#@@@#:          +@@@.',
+    '     .:#@@.   .+@@@#:.     ..      .@@#',
+    '   .#@@@@@    @@@+.     .+@@@@+.    :@@:',
+    '  +@@@:#@@    @@+    .:#@@@+#@@@#:.  @@#',
+    ' +@@+  +@@    @@+  :#@@@#:    :#@@@#:#@#',
+    ':@@:   +@@    @@#+@@@@@@@+.     .:#@@@@+',
+    '#@#    +@@    @@@@@+. .+@@@@+.     .+@@@:',
+    '@@+    +@@    @@#.       .#@@@#:.     +@@:',
+    '@@+    +@@    @@+         +@@#@@@#:    +@@.',
+    '#@@    :@@@#: @@+         +@@  :#@@+    @@#',
+    '.@@#    .+@@@@@@+         +@@    @@+    +@@',
+    ' .@@#.     .+@@@@:       :@@@    @@+    +@@',
+    '  .@@@#:      .#@@@#: :#@@@@@    @@+    @@#',
+    '   #@@@@@#:      :#@@@@@#:+@@    @@+   +@@.',
+    '   #@# :@@@@+.  .+@@@@+.  +@@    @@+ .#@@:',
+    '   #@@   .+@@@@@@@@+.     +@@    @@##@@@:',
+    '   :@@:     .+@@#:      :#@@@    @@@@@:',
+    '    #@@:             :#@@@#:    :@@:.',
+    '     #@@#.        .+@@@#:      .@@#',
+    '      :@@@@#++++#@@@@+.       :@@@',
+    '        .+@@@@@@@@@@#:     .:#@@+',
+    '            ....  +@@@@@@@@@@@+.',
+    '                    .:+####+:',
+)
+CLAUDE_MARK = (
+    '          #.            ##',
+    '         .##.   +@+    .@+',
+    '          .##.  .##    +@.',
+    '           .##.  #@.  .##.',
+    '            .##+ +@#  +@#   #@+',
+    '             .#@+.##. #@+ .#@+       .#',
+    '        @#.   .#@++@+.##..#@+     +#@#+.',
+    '        .#@#+. .#@+@#+@#+@@+  .+#@#+.',
+    '          .+#@#+.#@#@#@+@#+.+#@#+.',
+    '             .#@@##@@#@@###@##.',
+    ' ###+++++++++++++#@@@@@@@@#.',
+    ' .+++++######@@@@@@@@@@@@@@@######+++..',
+    '             .+#@@@@@@@@@#++++++#######',
+    '          .+#@@##@@+@@#@@#@@#.',
+    '      .+#@@#+.+@@#.#@#@.#@#+#@#+.',
+    '     #@#+.  +#@#. .###@+.#@#..+#@#.',
+    '          .#@#.   +@##@+  +@#.  .#@#+.',
+    '         +@#.     #@++@+   .##+    .#@#+',
+    '       +##+      .##.+@#    .#@       +',
+    '       #+        +@+ .##',
+    '                 ##.  ##.',
+    '                 ##   ##.',
+    '                      +@.',
+    '                      .@+',
+)
+
+
+def computer_cat():
     # The cat is the monitor: ears and whiskers meet the bezel, and a power LED sits on its chin.
-    parts = [box(20,53,268,230,BG,8,BORDER), tx(268,75,'MEOW',11,GRAY,'text-anchor="end"'),
-             '<g transform="translate(50 80)">']
+    parts = []
     def shape(d, fill):
         return f'<path d="{d}" fill="{fill}"/>'
     parts += [shape('M24 49V8h9v7h9v7h9v7h9v6h72v-6h9v-7h9v-7h9V8h9v41h8v78h-8v9H24v-9h-8V49z','#516d83'),
@@ -150,8 +214,66 @@ def mascot():
               shape('M7 83h20v4H7zm-5 13h23v4H2zm161-13h21v4h-21zm2 13h23v4h-23z',CYAN),
               box(34,129,31,2,'#8da6b4'),box(151,127,7,4,MINT),
               shape('M81 136h29v9h15v6H65v-6h16z','#516d83'),
-              box(52,151,90,4,'#344653'),'</g>']
+              box(52,151,90,4,'#344653')]
     return ''.join(parts)
+
+
+def ascii_mark(rows,color):
+    # A fixed text advance keeps the negative space in the knot and starburst stable.
+    pitch=4.45
+    step=5.9
+    width=max(len(row.rstrip()) for row in rows)
+    x0=(190-width*pitch)/2
+    y0=(157-len(rows)*step)/2
+    ink=[]
+    bed=[]
+    for i,row in enumerate(rows):
+        if not row.strip():
+            continue
+        value=row.strip()
+        left=len(row)-len(row.lstrip())
+        y=y0+i*step
+        for run in re.finditer('[@#]+',row):
+            n=len(run[0])
+            bed.append(f'M{run.start()} {i}h{n}v1h-{n}z')
+        ink.append(tx(x0+left*pitch,y+5.55,value,7.5,color,
+                      f'xml:space="preserve" font-weight="700" textLength="{len(value)*pitch:.2f}" lengthAdjust="spacingAndGlyphs"'))
+    return (f'<path fill="{color}" opacity=".27" transform="translate({x0:g} {y0:g}) scale({pitch} {step})" '
+            f'd="{"".join(bed)}"/>'+''.join(ink))
+
+
+PORTRAIT_CSS = """
+.slide,.contact-sheet{opacity:0}.first{opacity:1}
+@media(prefers-reduced-motion:no-preference){
+.slide{animation:channel 12s linear infinite;animation-delay:var(--offset)}}
+@keyframes channel{0%,23.6%{opacity:1}25%,98.6%{opacity:0}100%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.channels{display:none}.contact-sheet{opacity:1}}
+"""
+
+
+def mascot():
+    portraits=[('meow','MEOW',MINT,computer_cat()),
+               ('gemini','GEMINI',MINT,ascii_mark(GEMINI_MARK,MINT)),
+               ('openai','OPENAI',CYAN,ascii_mark(OPENAI_MARK,CYAN)),
+               ('claude','CLAUDE / 403',RED,ascii_mark(CLAUDE_MARK,RED))]
+    parts=[box(20,53,268,230,BG,8,BORDER),'<defs>']
+    for name,_,_,art in portraits:
+        parts.append(f'<g id="portrait-{name}">{art}</g>')
+    parts.append('</defs><g class="channels">')
+    for i,(name,label,color,_) in enumerate(portraits):
+        offset=3*i-12 if i else 0
+        parts.append(f'<g class="slide{" first" if not i else ""}" style="--offset:{offset}s">')
+        parts.append(tx(270,74,label,11,color,'text-anchor="end"'))
+        parts.append(f'<use href="#portrait-{name}" transform="translate(61 83)"/>')
+        for j in range(4):
+            parts.append(box(123+j*17,264,12,3,color if i==j else BORDER,1))
+        parts.append('</g>')
+    parts.append('</g><g class="contact-sheet">')
+    for i,(name,label,color,_) in enumerate(portraits):
+        x,y=36+(i%2)*124,66+(i//2)*107
+        parts.append(f'<use href="#portrait-{name}" transform="translate({x+17} {y}) scale(.46)"/>')
+        parts.append(tx(x+61,y+89,label,10.5,color,'text-anchor="middle"'))
+    return ''.join(parts)+'</g><!-- crawler.note: 1nsaneeee / 10x dev, powered by coffee. -->'
 
 
 def spinner(x,y):
@@ -215,7 +337,7 @@ def neofetch(data):
          '.pupils{animation:glance 6.8s steps(2,end) infinite}}@keyframes spin{to{transform:translateY(-140px)}}'
          '@keyframes glance{0%,66%,89%,100%{transform:translateX(0)}72%,83%{transform:translateX(5px)}}')
     desc = '; '.join(f'{key}: {value}' for key,value,_ in fields)
-    return card('neofetch · AI agents',desc+'; language share by code bytes in public non-fork repositories.',300,body,css)
+    return card('neofetch · AI agents',desc+'; MEOW, Gemini, OpenAI, Claude; language share by code bytes in public non-fork repositories.',300,body,css+PORTRAIT_CSS)
 
 
 def heatmap(first,last,counts):
@@ -298,11 +420,11 @@ def render_terminal(data,assets,write):
     for name,render in [('banner',banner),('neofetch',neofetch),('activity',activity)]:
         write(target/(name+'.svg'),render(data))
     badges=[]
-    for label,repo,color in [('TypeScript','url-to-markdown','79c0ff'),('C#','Programming-Carrier','e3b341'),
-                             ('ftb-quests-preview','ftb-quests-preview','7ee787'),('fgo-np-calculator','fgo-np-calculator','79c0ff')]:
-        # Shields uses a doubled hyphen for a literal hyphen in a static badge label.
-        image='https://img.shields.io/badge/'+quote(label.replace('-','--'),safe='')+'-'+color+'?style=flat-square'
-        badges.append(f'[![{label}]({image})]({PROFILE}/{repo})')
+    # Use the official flat-square Shields PNGs locally so GitHub's image proxy is not in the request path.
+    for label,file,repo in [('TypeScript','typescript','url-to-markdown'),('C#','csharp','Programming-Carrier'),
+                           ('ftb-quests-preview','ftb-quests-preview','ftb-quests-preview'),
+                           ('fgo-np-calculator','fgo-np-calculator','fgo-np-calculator')]:
+        badges.append(f'[![{label}](./assets/badges/{file}.png)]({PROFILE}/{repo})')
     return ('![1nsaneeee · 写点工具，也做游戏](./assets/terminal/banner.svg)\n\n'
             +' '.join(badges)+'\n\n![neofetch · Tom Chou 与 AI agents](./assets/terminal/neofetch.svg)\n\n'
             +'[![365 天活跃度、最近四条提交与项目目录](./assets/terminal/activity.svg)]'

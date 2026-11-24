@@ -1,6 +1,6 @@
 ![1nsaneeee · 写点工具，也做游戏](./assets/terminal/banner.svg)
 
-[![TypeScript](https://img.shields.io/badge/TypeScript-79c0ff?style=flat-square)](https://github.com/1nsaneeee/url-to-markdown) [![C#](https://img.shields.io/badge/C%23-e3b341?style=flat-square)](https://github.com/1nsaneeee/Programming-Carrier) [![ftb-quests-preview](https://img.shields.io/badge/ftb--quests--preview-7ee787?style=flat-square)](https://github.com/1nsaneeee/ftb-quests-preview) [![fgo-np-calculator](https://img.shields.io/badge/fgo--np--calculator-79c0ff?style=flat-square)](https://github.com/1nsaneeee/fgo-np-calculator)
+[![TypeScript](./assets/badges/typescript.png)](https://github.com/1nsaneeee/url-to-markdown) [![C#](./assets/badges/csharp.png)](https://github.com/1nsaneeee/Programming-Carrier) [![ftb-quests-preview](./assets/badges/ftb-quests-preview.png)](https://github.com/1nsaneeee/ftb-quests-preview) [![fgo-np-calculator](./assets/badges/fgo-np-calculator.png)](https://github.com/1nsaneeee/fgo-np-calculator)
 
 ![neofetch · Tom Chou 与 AI agents](./assets/terminal/neofetch.svg)
 
