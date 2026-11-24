@@ -30,7 +30,8 @@ def snapshot():
         slug=repo['name']; route='/repos/'+owner+'/'+quote(slug)+'/commits'
         refs=subprocess.run(['git','ls-remote',repo['clone_url'],'refs/heads/'+repo['default_branch']],check=True,capture_output=True,text=True,timeout=30).stdout.split()
         if not refs:continue
-        rows=pages(route,sha=refs[0],author=owner)
+        # The API's author search can omit linked commits visible in the branch history.
+        rows=pages(route,sha=refs[0])
         for row in rows:
             if not row.get('author') or row['author']['login'].lower()!=owner.lower():continue
             time=datetime.fromisoformat(row['commit']['author']['date'].replace('Z','+00:00')).astimezone(zone)
