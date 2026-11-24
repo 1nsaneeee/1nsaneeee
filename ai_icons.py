@@ -348,12 +348,12 @@ MEOW_ASCII = (
     "    #==:  +++++++                       :==#",
     "    #==: +                              :==#",
     "    #==: +                              :==#",
-    "    #==: +    oooooo         oooooo     :==#",
-    "    #==:     o  @@  o       o  @@  o    :==#",
-    "    #==:     o  @@  o       o  @@  o    :==#",
-    "  -----:      oooooo         oooooo     :-----",
-    "    #==:               vv               :==#",
-    " ------:            \\_ww_/              :------",
+    "    #==: +    oooooo        oooooo      :==#",
+    "    #==:     o  @@  o      o  @@  o     :==#",
+    "    #==:     o  @@  o      o  @@  o     :==#",
+    "  -----:      oooooo        oooooo      :-----",
+    "    #==:                                :==#",
+    " ------:                                :------",
     "    #==:                                :==#",
     "    #==:                                :==#",
     "    #==:                                :==#",
@@ -373,7 +373,7 @@ def computer_cat(P):
     layers = [
         ("#", "cat_body", ""), ("=:", "cat_bezel", ""), ("/-", "cyan", ""),
         ("+", "cat_slot", ""), ("o", "mint", ""), ("@", "mint", "pupils"),
-        ("v", "gold", ""), ("\\w_", "cat_bezel", ""), ("*", "mint", "cat-led"),
+        ("_", "cat_bezel", ""), ("*", "mint", "cat-led"),
     ]
     parts = []
     for glyphs, color, motion in layers:
@@ -382,6 +382,14 @@ def computer_cat(P):
                           bed_opacity=0, columns=48)
         animation = f' class="{motion}"' if motion else ""
         parts.append(f'<g{animation} fill="{P[color]}">{ink}</g>')
+    # Mirror one ASCII cheek around the same center line as the two eye sockets.
+    half_smile = '<text x="-12" y="100" textLength="12" lengthAdjust="spacingAndGlyphs">\\_/</text>'
+    parts.append(
+        f'<g class="meow-muzzle" transform="translate(96 0)" fill="{P["cat_bezel"]}" '
+        'font-size="7.5" font-weight="700">'
+        f'<text x="0" y="93" text-anchor="middle" fill="{P["gold"]}">v</text>'
+        + half_smile + '<g transform="scale(-1 1)">' + half_smile + '</g></g>'
+    )
     return "".join(parts)
 
 
