@@ -212,10 +212,61 @@ class Pane:
                 +frame+(chrome if start<y+30 else '')+visible+'</g>')
 
 
-def watermark(x,y,kind):
-    rows = (['       .','      /|','   .-/:\\-.','< ::: + ::: >',"   '-\\:/-'","      \\|",'       ˙']
-            if kind=='star' else ['   .----.','  / .--. \\',' / / /\\ \\ \\',' \\ \\ \\/ / /','  \\ \'--\' /',"   '----'"])
-    return '<g opacity=".05">'+''.join(t(x,y+i*11,r,15,MINT,attrs='xml:space="preserve"') for i,r in enumerate(rows))+'</g>'
+GEMINI_HALF = (
+    '+', '#', '+@+', '#@#', '.#@#.', '+@@@+', '+#@@@#+',
+    '.#@@@@@#.', '+#@@@@@@@#+', '+#@@@@@@@@@#+',
+    '.+#@@@@@@@@@@@@@#+.', '.:+#@@@@@@@@@@@@@@@@@@@#+:.',
+    '.:+##@@@@@@@@@@@@@@@@@@@@@@@@@##+:.',
+)
+GEMINI_MARK = tuple(row.center(43) for row in
+                    (*GEMINI_HALF, '..+##@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@##+..', *reversed(GEMINI_HALF)))
+OPENAI_MARK = (
+    '             .+#@@@@@#:.',
+    '           :@@@@##+#@@@@#..::::.',
+    '         .@@@+.       +@@@@@@@@@@@+.',
+    '        .@@#.       :#@@@#::..::#@@@+',
+    '        @@#      .#@@@#:          +@@@.',
+    '     .:#@@.   .+@@@#:.     ..      .@@#',
+    '   .#@@@@@    @@@+.     .+@@@@+.    :@@:',
+    '  +@@@:#@@    @@+    .:#@@@+#@@@#:.  @@#',
+    ' +@@+  +@@    @@+  :#@@@#:    :#@@@#:#@#',
+    ':@@:   +@@    @@#+@@@@@@@+.     .:#@@@@+',
+    '#@#    +@@    @@@@@+. .+@@@@+.     .+@@@:',
+    '@@+    +@@    @@#.       .#@@@#:.     +@@:',
+    '@@+    +@@    @@+         +@@#@@@#:    +@@.',
+    '#@@    :@@@#: @@+         +@@  :#@@+    @@#',
+    '.@@#    .+@@@@@@+         +@@    @@+    +@@',
+    ' .@@#.     .+@@@@:       :@@@    @@+    +@@',
+    '  .@@@#:      .#@@@#: :#@@@@@    @@+    @@#',
+    '   #@@@@@#:      :#@@@@@#:+@@    @@+   +@@.',
+    '   #@# :@@@@+.  .+@@@@+.  +@@    @@+ .#@@:',
+    '   #@@   .+@@@@@@@@+.     +@@    @@##@@@:',
+    '   :@@:     .+@@#:      :#@@@    @@@@@:',
+    '    #@@:             :#@@@#:    :@@:.',
+    '     #@@#.        .+@@@#:      .@@#',
+    '      :@@@@#++++#@@@@+.       :@@@',
+    '        .+@@@@@@@@@@#:     .:#@@+',
+    '            ....  +@@@@@@@@@@@+.',
+    '                    .:+####+:',
+)
+
+
+def watermark(x,y,size,kind):
+    rows=GEMINI_MARK if kind=='gemini' else OPENAI_MARK
+    # Fixed character positions keep the six interlocking loops intact with any monospace fallback.
+    # A dim phosphor bed connects the ink between glyphs when GitHub downscales the image.
+    bed=[]
+    letters=[]
+    for row_index,row in enumerate(rows):
+        for run in re.finditer(r'[@#]+',row):
+            bed.append(f'M{run.start()*6} {row_index*9}h{len(run[0])*6}v9h-{len(run[0])*6}Z')
+        for run in re.finditer(r'\S+',row):
+            letters.append(t(run.start()*6,row_index*9+7.8,run[0],10,'#e2ffef',bold=True,
+                             attrs=f'textLength="{len(run[0])*6}" lengthAdjust="spacingAndGlyphs"'))
+    return (f'<svg x="{x}" y="{y}" width="{size}" height="{size}" viewBox="0 0 258 243" '
+            f'data-watermark="{kind}" aria-hidden="true"><g opacity=".06">'
+            +f'<path fill="#ceffdf" opacity=".55" d="{"".join(bed)}"/>'
+            +''.join(letters)+'</g></svg>')
 
 
 def date_of(value):
@@ -226,12 +277,18 @@ def identity(w,animated):
     p=Pane(w,'identity',1,focus=True)
     pad=17
     p.add(46,62,command(pad,58,'whoami | figlet',14,True,animated))
-    logo_w=min(w-44,462)
+    narrow=w<600
+    logo_w=min(w-44,548)
     p.add(74,74+logo_w/65*8,wordmark(pad+2,74,logo_w))
     y=round(77+logo_w/65*8)+24
     p.add(y-15,y+2,command(pad,y,'cat ~/.plan'))
-    p.add(y+9,y+27,t(pad,y+25,'给 Minecraft 写模组，给 FGO 算伤害。',15,INK))
-    y+=58
+    mark_size=142 if narrow else 245
+    mark_y=y-13
+    p.add(mark_y,mark_y+mark_size,watermark(w-pad-mark_size,mark_y,mark_size,'gemini'))
+    bio=['给 Minecraft 写模组，','给 FGO 算伤害。'] if narrow else ['给 Minecraft 写模组，给 FGO 算伤害。']
+    for i,line in enumerate(bio):
+        p.add(y+9+i*23,y+28+i*23,t(pad,y+25+i*23,line,15,INK))
+    y=mark_y+mark_size+19 if narrow else y+58
     p.add(y-15,y+2,command(pad,y,'fastfetch --logo none'))
     p.add(y+7,y+34,t(pad,y+25,'Stack',12,DIM)+t(pad+62,y+25,'TypeScript / JavaScript / C#',13))
     agents=t(pad,y+48,'Agents',12,DIM)
@@ -241,7 +298,7 @@ def identity(w,animated):
         cx+=len(caption)*7.2+25
     p.add(y+34,y+51,agents)
     p.add(y+56,y+75,t(pad,y+71,'Fuel',12,DIM)+t(pad+62,y+71,'40% Coffee / 60% Tokens',13))
-    y+=99
+    y=max(y+99,mark_y+mark_size+22)
     p.add(y-10,y+2,path(f'M{pad} {y-8}H{w-pad}'))
     heading=t(pad+32,y+24,'Thinking... (1.4s)',14,MINT,bold=True)
     p.add(y+6,y+27,spinner(pad+17,y+24,'thoughts',animated)
@@ -250,13 +307,12 @@ def identity(w,animated):
     y+=47
     first=y
     for i,note in enumerate(NOTES):
-        lines=wrap(note,int((w-pad*2-13)/(11.5*.62)))
-        text=''.join(t(pad+13,y+j*16,line,11.5,DIM,cls='note',attrs=f'style="--delay:{1.12+i*.19}s"') for j,line in enumerate(lines))
-        p.add(y-13,y+len(lines)*16,'<g class="thoughts">'+text+'</g>')
-        y+=16*len(lines)+4
+        lines=wrap(note,int((w-pad*2-13)/(12.5*.62)))
+        text=''.join(t(pad+13,y+j*18,line,12.5,DIM,cls='note',attrs=f'style="--delay:{1.12+i*.19}s"') for j,line in enumerate(lines))
+        p.add(y-14,y+len(lines)*18,'<g class="thoughts">'+text+'</g>')
+        y+=18*len(lines)+4
     p.add(first-12,y-9,'<g class="thoughts">'+path(f'M{pad+2} {first-11}V{y-10}',BORDER,2)+'</g>')
     p.h=y+10
-    p.items.insert(0,Item(144,235,watermark(w-151,164,'star')))
     return p
 
 
@@ -289,25 +345,30 @@ def process_pane(w,data,animated):
         p.target(f'repo-{i}',y,y+46,url,f"{name} · {'RUN' if on else 'IDLE'} · {n} commits / 30d")
         y+=46
     y+=26
+    narrow=w<600
+    mark_size=148 if narrow else 222
+    mark_y=y+9 if narrow else y-28
+    p.add(mark_y,mark_y+mark_size,watermark(w-x-mark_size,mark_y,mark_size,'openai'))
     p.add(y-18,y+2,command(x,y,'systemctl --user list-units "*ai*"',12.5))
     for i,(key,name,status) in enumerate([('gemini','Gemini','active (thinking)'),('openai','OpenAI','active (coding)'),('claude','Claude','failed (banned)')]):
-        yy=y+26+i*23; col=RED if key=='claude' else MINT
+        yy=y+31+i*(47 if narrow else 40); col=RED if key=='claude' else MINT
         row=t(x,yy,'×' if key=='claude' else '●',12,col)+icon(key,x+26,yy-4,5.5,col)
-        row+=t(x+39,yy,name,13,INK if key!='claude' else RED)+t(x+114,yy,status,12,col)
-        if key=='gemini': row+=spinner(x+245,yy,'gemini',animated)
-        p.add(yy-14,yy+3,row)
-    y+=103
+        status_y=yy+17 if narrow else yy
+        row+=t(x+39,yy,name,13,INK if key!='claude' else RED)+t(x+(18 if narrow else 114),status_y,status,12,col)
+        if key=='gemini': row+=spinner(x+(146 if narrow else 245),status_y,'gemini',animated)
+        p.add(yy-14,status_y+3,row)
+    y=mark_y+mark_size+21
     p.add(y-15,y+2,command(x,y,'cat .env.local'))
     for i,(name,value,status) in enumerate(ENV):
-        yy=y+24+i*20
+        yy=y+25+i*23
         key=f'{name}_KEY="{value}"'
-        usable=w-2*x-90
-        size=min(11,usable/(len(key)*.61))
+        status_size=10.5 if narrow else 12
+        usable=w-2*x-len(status)*status_size*.63-10
+        size=min(11 if narrow else 13,usable/(len(key)*.61))
         body=t(x,yy,key,max(10,size),DIM,attrs=f'textLength="{min(usable,len(key)*size*.60):.2f}" lengthAdjust="spacingAndGlyphs"')
-        body+=t(w-x,yy,status,10.5,RED if name=='CLAUDE' else MINT,anchor='end',bold=True)
+        body+=t(w-x,yy,status,status_size,RED if name=='CLAUDE' else MINT,anchor='end',bold=True)
         p.add(yy-13,yy+3,body)
-    p.h=y+89
-    p.items.insert(0,Item(195,288,watermark(w-115,206,'hex')))
+    p.h=y+94
     return p
 
 
@@ -323,7 +384,7 @@ def calendar_pane(w,data,calendar):
         xx=x+i*(w-2*x)/3
         p.add(76,127,t(xx,101,str(n),29,MINT if i==0 else INK,bold=True)+t(xx,121,label,11,DIM))
     p.add(133,153,t(x,148,f'{first} .. {last}',11,DIM))
-    stock=ET.fromstring(calendar(first,last,counts,True))
+    stock=ET.fromstring(calendar(first,last,counts,w<600))
     _,_,cw,ch=map(int,stock.get('viewBox').split())
     s=(w-2*x)/cw
     top=163
@@ -333,7 +394,8 @@ def calendar_pane(w,data,calendar):
         tag=item.tag.rsplit('}',1)[-1]
         if tag=='text':
             xx,yy=float(item.get('x')),float(item.get('y'))
-            bounds=(yy-11,yy+2); content=t(xx,yy,item.text or '',10,DIM)
+            size=10 if w<600 else 12
+            bounds=(yy-size,yy+3); content=t(xx,yy,item.text or '',size,DIM)
         elif tag=='rect' and 'data-date' in item.attrib:
             xx,yy,ww,hh=[float(item.get(attr)) for attr in ('x','y','width','height')]
             day=item.get('data-date'); count=item.get('data-count')
@@ -445,28 +507,19 @@ def status_bar(w,data,mobile):
 
 class Desktop:
     def __init__(self,data,calendar,mobile,animated):
-        self.w=420 if mobile else 1080
+        self.w=384 if mobile else 680
         self.animated=animated
         gap=10; inside=self.w-2*gap
-        left=inside if mobile else 567
-        right=inside if mobile else inside-gap-left
-        ident=identity(left,animated); proc=process_pane(right,data,animated)
-        heat=calendar_pane(left,data,calendar); log=journal(right,data,animated)
+        ident=identity(inside,animated); proc=process_pane(inside,data,animated)
+        heat=calendar_pane(inside,data,calendar); log=journal(inside,data,animated)
         y=38
-        if mobile:
-            self.panes=[]
-            for p in (ident,proc,heat,log):
-                self.panes.append((gap,y,p));y+=p.h+gap
-        else:
-            ident.h=proc.h=max(ident.h,proc.h)
-            heat.h=log.h=max(heat.h,log.h)
-            next_y=y+ident.h+gap
-            self.panes=[(gap,y,ident),(gap+left+gap,y,proc),(gap,next_y,heat),(gap+left+gap,next_y,log)]
-            y=next_y+heat.h+gap
+        self.panes=[]
+        for pane in (ident,proc,heat,log):
+            self.panes.append((gap,y,pane))
+            y+=pane.h+gap
         self.status_y=y
         self.status,self.status_h=status_bar(inside,data,mobile)
         self.h=y+self.status_h+4
-        # Move both decorative footers to the real pane bottom after the two-column height is known.
         heat.add(heat.h-27,heat.h-5,t(16,heat.h-13,'xxd: '+'Hello from Insaneeee'.encode().hex(),9.5,LOW))
         log.add(log.h-40,log.h-5,cat(log.w-75,log.h-32,animated))
         self.targets={}
