@@ -1,9 +1,9 @@
 from datetime import date, datetime, timezone, timedelta
 from urllib.parse import urlencode,quote
 from urllib.request import Request,urlopen
-from urllib.error import HTTPError
 from pathlib import Path
-import json, sys, subprocess
+import json, os, subprocess
+from terminal_art import render_terminal
 owner='1nsaneeee'
 base='https://api.github.com'
 def pages(path,**params):
@@ -34,15 +34,7 @@ def snapshot():
             sha=row['sha']
             all_rows.setdefault(sha,dict(sha=sha,repo=slug,branch=repo['default_branch'],time=time.isoformat(),title=row['commit']['message'].splitlines()[0],url=row['html_url']))
     return {'end':when.isoformat(),'start':start.isoformat(),'owned':len(repos),'scanned':total,'commits':sorted(all_rows.values(),key=lambda row:(row['time'],row['sha']),reverse=True)}
-from collections import Counter
-from html import escape
-from hashlib import sha256
-import os, re
-
-BEGIN='<!-- zsh-public-activity:start -->'
-END='<!-- zsh-public-activity:end -->'
 palette=['#24362e','#3e7958','#5eac71','#97d588','#d7ed9f']
-levels=['0','1','2–4','5–9','10+']
 
 def heatmap(first,last,counts,small):
     monday=first-timedelta(days=first.weekday())
@@ -88,68 +80,16 @@ def local_write(path,content):
         temp.write(content.encode('utf-8'))
     os.replace(temp.name,path)
 
-def render_activity(data,asset_dir,web=False):
-    rows=data['commits']
-    counts=Counter(r['time'][:10] for r in rows)
-    end=datetime.fromisoformat(data['end']).date(); start=date.fromisoformat(data['start'])
-    n=len(rows); days=len(counts); repos=len({r['repo'] for r in rows})
-    desktop=heatmap(start,end,counts,False)
-    mobile=heatmap(start,end,counts,True)
-    key=sha256((desktop+mobile).encode()).hexdigest()[:10]
-    filenames=[f'commits-{key}.svg',f'commits-{key}-mobile.svg']
-    asset_dir.mkdir(exist_ok=True)
-    for filename,image in zip(filenames,[desktop,mobile]):
-        path=asset_dir/filename
-        if not path.exists():local_write(path,image)
-    stats=f'{n} commits · {days} active days · {repos} repos'
-    window=f'{start}..{end}'
-    alt=f'{window} 每日提交热力图。{stats}。'
-    chart=f'<picture><source media="(max-width: 600px)" srcset="./assets/{filenames[1]}"><img src="./assets/{filenames[0]}" width="100%" alt="{alt}"></picture>'
-    scope='UTC+8 · 本人公开非 Fork 仓库的默认分支，按 GitHub 关联作者的提交日期统计。'
-    scale='每天提交数，从深到浅为 0 / 1 / 2–4 / 5–9 / 10+。'
-    dates=sorted(counts.items(),reverse=True)
-    if web:
-        daily=''.join(f'<li><time>{day}</time><span>{count}</span></li>' for day,count in dates)
-        details=f'<details><summary>--stat</summary><p class="scope">{scope}<br>{scale}</p><ul class="daily">{daily}</ul></details>'
-        activity=(f'<section class="term-section"><h2 class="cmd"><span>~/src ❯</span> cat activity/365d.ansi</h2>'
-                  f'<div class="stats"><span class="totals">{stats}</span><small>{window}</small></div>'
-                  f'<div class="heat">{chart}</div>{details}</section>')
-    else:
-        daily='\n'.join(f'{day}    {count:>3}' for day,count in dates)
-        details=f'<details><summary><samp>--stat</samp></summary>\n\n{scope}<br>{scale}\n\n<pre>{daily}</pre>\n\n</details>'
-        activity='\n\n'.join(['<samp>~/src ❯ cat activity/365d.ansi</samp>',f'<samp>{stats}</samp>　<sub>{window}</sub>',chart,details])
-    entries=[]
-    for row in rows[:5]:
-        stamp=datetime.fromisoformat(row['time'])
-        label=f'{stamp:%Y-%m-%d %H:%M} · {escape(row["repo"])}'
-        link=f'<a href="{escape(row["url"],quote=True)}"'+(' target="_blank" rel="noopener"' if web else '')+f'>{row["sha"][:7]}</a>'
-        title=escape(row['title'])
-        if web:
-            entries.append(f'<li>{link}<div><span>{title}</span><small>{label}</small></div></li>')
-        else:
-            entries.append(f'{link}　{title}<br><sub>{label}</sub>')
-    if web:
-        output=f'<ol class="logs">{"".join(entries)}</ol>' if entries else '<samp>0 commits</samp>'
-        latest=f'<section class="term-section"><h2 class="cmd"><span>~/src ❯</span> head -5 activity/commits.log</h2>{output}</section>'
-    else:
-        output='<br>'.join(entries) or '0 commits'
-        latest=f'<samp>~/src ❯ head -5 activity/commits.log</samp>\n\n<p><samp>{output}</samp></p>'
-    return activity+'\n\n'+latest,filenames
-
+def publish_terminal(data, root):
+    readme = render_terminal(data, root / 'assets', heatmap, local_write)
+    local_write(root / 'README.md', readme)
 
 
 def refresh():
-    root=Path(__file__).resolve().parent
-    readme=root/'README.md'
-    original=readme.read_text(encoding='utf-8')
-    if original.count(BEGIN)!=1 or original.count(END)!=1:
-        raise ValueError('README.md needs exactly one pair of activity markers.')
-    old,following=original.split(BEGIN); _,following=following.split(END)
-    data=snapshot()
-    section,files=render_activity(data,root/'assets')
-    local_write(readme,old+BEGIN+'\n\n'+section+'\n\n'+END+following)
+    data = snapshot()
+    publish_terminal(data, Path(__file__).resolve().parent)
     print(f"Updated {len(data['commits'])} commits through {data['end'][:10]}.")
 
-if __name__=='__main__':
-    refresh()
 
+if __name__ == '__main__':
+    refresh()
