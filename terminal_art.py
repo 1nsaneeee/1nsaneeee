@@ -760,7 +760,7 @@ def minecraft_card(P):
     ])
     css = (
         "@media(prefers-reduced-motion:no-preference){.quest-entry{animation:entry .35s ease-out var(--wait) backwards}}"
-        "@keyframes entry{from{opacity:.25;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}"
+        "@keyframes entry{from{opacity:.75;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}"
     )
     return omz_card(
         P,
@@ -882,9 +882,9 @@ def render_terminal(data, assets, write):
 
     skill_icons = (
         "<picture>\n"
-        '  <source media="(prefers-color-scheme: dark)" srcset="https://skillicons.dev/icons?i=ts,js,java,py,cs,unity,nodejs,vscode,git,github&theme=dark">\n'
+        '  <source media="(prefers-color-scheme: dark)" srcset="https://skillicons.dev/icons?i=ts%2Cjs%2Cjava%2Cpy%2Ccs%2Cunity%2Cnodejs%2Cvscode%2Cgit%2Cgithub&amp;theme=dark">\n'
         '  <img alt="TypeScript, JavaScript, Java, Python, C#, Unity, Node.js, VS Code, Git, GitHub" '
-        'src="https://skillicons.dev/icons?i=ts,js,java,py,cs,unity,nodejs,vscode,git,github&theme=light">\n'
+        'src="https://skillicons.dev/icons?i=ts,js,java,py,cs,unity,nodejs,vscode,git,github&amp;theme=light">\n'
         "</picture>"
     )
 
@@ -910,14 +910,14 @@ def render_terminal(data, assets, write):
 
 | Project | What it does | Stack | Links |
 | :--- | :--- | :--- | :--- |
-| **[agentinminecraft]({PROFILE}/agentinminecraft)** | NeoForge 1.21.1 Mod：MCP（35 工具）+ WebSocket 桥接，给 AI Agent 一具能在 MC 里走路、挖矿、造世界、聊天的真实玩家身体 | `Java` `NeoForge` `MCP` | [Repo]({PROFILE}/agentinminecraft) |
-| **[OpenJarvis]({PROFILE}/OpenJarvis)** | 本地优先、模型无关的开源桌面语音 AI 助手框架（唤醒词 → ASR → LLM → MCP 工具执行） | `Python` `Redis` `MCP` | [Repo]({PROFILE}/OpenJarvis) |
-| **[ftb-quests-preview]({PROFILE}/ftb-quests-preview)** | 本地 FTB Quests 任务书可视化预览编辑器 + Headless CLI（节点拖拽、格式码补全、AI JSON Patch） | `JavaScript` `Node CLI` | [Repo]({PROFILE}/ftb-quests-preview) |
-| **[fgo-np-calculator]({PROFILE}/fgo-np-calculator)** | FGO 宝具伤害计算器 v2.0：伤害区间、NP 回收、三回合周回连发试算 | `JavaScript` `Web` | [Repo]({PROFILE}/fgo-np-calculator) · [**Live Demo ↗**](https://1nsaneeee.github.io/fgo-np-calculator/) |
-| **[url-to-markdown]({PROFILE}/url-to-markdown)** | VS Code 扩展：输入网址智能提取正文（Readability）并转换为干净的 Markdown | `TypeScript` `VS Code` | [Repo]({PROFILE}/url-to-markdown) |
+| **[agentinminecraft]({PROFILE}/agentinminecraft)** | NeoForge 1.21.1 Mod：MCP（35 工具）+ WebSocket 桥接，给 AI Agent 一具能在 MC 里走路、挖矿、造世界、聊天的真实玩家身体 | `Java` `MCP` | [Repo]({PROFILE}/agentinminecraft) |
+| **[OpenJarvis]({PROFILE}/OpenJarvis)** | 本地优先、模型无关的开源桌面语音 AI 助手框架（唤醒词 → ASR → LLM → MCP 工具执行） | `Python` `MCP` | [Repo]({PROFILE}/OpenJarvis) |
+| **[ftb-quests-preview]({PROFILE}/ftb-quests-preview)** | 本地 FTB Quests 任务书可视化预览编辑器 + Headless CLI（节点拖拽、格式码补全、AI JSON Patch） | `JS` `CLI` | [Repo]({PROFILE}/ftb-quests-preview) |
+| **[fgo-np-calculator]({PROFILE}/fgo-np-calculator)** | FGO 宝具伤害计算器 v2.0：伤害区间、NP 回收、三回合周回连发试算 | `JS` `Web` | [Repo]({PROFILE}/fgo-np-calculator) · [**Demo**](https://1nsaneeee.github.io/fgo-np-calculator/) |
+| **[url-to-markdown]({PROFILE}/url-to-markdown)** | VS Code 扩展：输入网址智能提取正文（Readability）并转换为干净的 Markdown | `TS` `VS Code` | [Repo]({PROFILE}/url-to-markdown) |
 | **[Programming-Carrier]({PROFILE}/Programming-Carrier)** | Unity 2D 类银河战士恶魔城 RPG 毕业设计（战斗、探索、技能系统） | `C#` `Unity` | [Repo]({PROFILE}/Programming-Carrier) |
-| **[pixart-pixel-tool]({PROFILE}/pixart-pixel-tool)** | 24×24 像素画参照工具：图片转 40 色限定像素网格，零依赖单文件 | `JavaScript` `Canvas` | [Repo]({PROFILE}/pixart-pixel-tool) · [**Live Demo ↗**](https://1nsaneeee.github.io/pixart-pixel-tool/) |
-| **[doc-router]({PROFILE}/doc-router)** | Agent Skill：Context7 + `llms.txt` 文档检索路由管线 | `PowerShell` `Agent Skill` | [Repo]({PROFILE}/doc-router) |
+| **[pixart-pixel-tool]({PROFILE}/pixart-pixel-tool)** | 24×24 像素画参照工具：图片转 40 色限定像素网格，零依赖单文件 | `JS` `Canvas` | [Repo]({PROFILE}/pixart-pixel-tool) · [**Demo**](https://1nsaneeee.github.io/pixart-pixel-tool/) |
+| **[doc-router]({PROFILE}/doc-router)** | Agent Skill：Context7 + `llms.txt` 文档检索路由管线 | `PS1` `Skill` | [Repo]({PROFILE}/doc-router) |
 
 <div align="center">
 
@@ -931,7 +931,7 @@ def render_terminal(data, assets, write):
 {_pic("assets/terminal/chaldeas-dark.svg", "assets/terminal/chaldeas-light.svg", "迦勒底御主档案 · FGO Master File")}
 </a>
 
-<sub><code>cat ~/chaldeas/AGENTS.md</code> · <a href="./chaldeas/AGENTS.md">查看御主档案源文件</a> · <a href="https://1nsaneeee.github.io/fgo-np-calculator/">在线打开宝具计算器 ↗</a> · <a href="{PROFILE}/fgo-np-calculator">源码仓库</a></sub>
+<sub><code>cat ~/chaldeas/AGENTS.md</code> · <a href="./chaldeas/AGENTS.md">御主档案源文件</a> · <a href="https://1nsaneeee.github.io/fgo-np-calculator/">在线打开宝具计算器</a> · <a href="{PROFILE}/fgo-np-calculator">源码仓库</a></sub>
 
 <br/><br/>
 
@@ -939,7 +939,7 @@ def render_terminal(data, assets, write):
 {_pic("assets/terminal/minecraft-dark.svg", "assets/terminal/minecraft-light.svg", "Minecraft 科技水槽包任务手册")}
 </a>
 
-<sub><code>cat ~/Minecraft/SKILL.md</code> · <a href="./Minecraft/SKILL.md">查看任务手册源文件</a> · <a href="{PROFILE}/agentinminecraft">AI 进 MC 模组 ↗</a> · <a href="{PROFILE}/ftb-quests-preview">FTB 任务编辑器 ↗</a></sub>
+<sub><code>cat ~/Minecraft/SKILL.md</code> · <a href="./Minecraft/SKILL.md">任务手册源文件</a> · <a href="{PROFILE}/agentinminecraft">AI 进 MC 模组</a> · <a href="{PROFILE}/ftb-quests-preview">FTB 任务编辑器</a></sub>
 
 <br/><br/>
 
