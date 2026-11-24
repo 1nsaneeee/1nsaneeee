@@ -2,6 +2,9 @@
 
 DARK = {
     "name": "dark",
+    "terminal_title": "#1b2c38",
+    "fgo_title": "#2b2620",
+    "mc_title": "#192c27",
     "bg": "#0d1117",
     "mantle": "#161b22",
     "panel": "#111720",
@@ -58,6 +61,9 @@ DARK = {
 
 LIGHT = {
     "name": "light",
+    "terminal_title": "#e7f1f8",
+    "fgo_title": "#f6efdf",
+    "mc_title": "#e7f2eb",
     "bg": "#ffffff",
     "mantle": "#f6f8fa",
     "panel": "#f3f6fa",

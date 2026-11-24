@@ -10,6 +10,8 @@ on:
       - themes.py
       - ai_icons.py
       - terminal_art.py
+      - terminal_detail.py
+      - chaldeas/fate-title.txt
       - refresh_activity.py
   schedule:
     - cron: '17 0 * * *' # 08:17 UTC+8

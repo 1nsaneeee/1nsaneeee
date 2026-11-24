@@ -4,12 +4,16 @@ from datetime import date, datetime, timedelta
 from html import escape
 from math import cos, pi, sin
 from pathlib import Path
+import logging
+import random
 import re
 import unicodedata
 from urllib.parse import quote
 
 from ai_icons import PORTRAIT_CSS, build_mascot
 from themes import THEMES
+from terminal_detail import (FATE_CSS, FORGE_CSS, SKILL_CSS, TREE_CSS,
+                             fate_background, forge_background)
 
 OWNER = "1nsaneeee"
 PROFILE = f"https://github.com/{OWNER}"
@@ -68,7 +72,7 @@ def shorten(text, limit):
     return text
 
 
-def omz_card(P, title, desc, body_h, body, cmd_title, right_tag="", css=""):
+def omz_card(P, title, desc, body_h, body, cmd_title, right_tag="", css="", title_ink=None):
     """Wrap content in a unified Oh My Zsh macOS-style terminal window with soft shadow."""
     wx, wy = MARGIN, MARGIN
     ww = W - 2 * MARGIN
@@ -82,7 +86,7 @@ def omz_card(P, title, desc, body_h, body, cmd_title, right_tag="", css=""):
     frame = "".join([
         f'<rect x="{wx}" y="{wy}" width="{ww}" height="{wh}" rx="11" fill="{P["bg"]}" filter="url(#win-shadow)"/>',
         f'<path d="M{wx},{wy + TITLE_H} V{wy + 11} a11,11 0 0 1 11,-11 H{wx + ww - 11} '
-        f'a11,11 0 0 1 11,11 V{wy + TITLE_H} Z" fill="{P["mantle"]}"/>',
+        f'a11,11 0 0 1 11,11 V{wy + TITLE_H} Z" fill="{title_ink or P["mantle"]}"/>',
         rule(wx, wx + ww, wy + TITLE_H + 0.5, P["border"]),
         f'<rect x="{wx + .5}" y="{wy + .5}" width="{ww - 1}" height="{wh - 1}" rx="10.5" '
         f'fill="none" stroke="{P["border"]}"/>',
@@ -141,26 +145,62 @@ def signature(P):
     )
 
 
-def tip_pages(config):
+TIP_PAGE_BUDGET = 24
+
+
+def wrap_tip(line):
     pages = []
+    while cells(line) > 74:
+        width = last_break = 0
+        for i, char in enumerate(line):
+            width += cells(char)
+            if width > 74:
+                break
+            if char.isspace() or char in "，。！？；、,;.!?":
+                last_break = i + 1
+        split = last_break if last_break >= i // 2 else i
+        pages.append(line[:split].rstrip())
+        line = line[split:].lstrip()
+    if line:
+        pages.append(line)
+    return pages
+
+
+def tip_pages(config, page_budget=TIP_PAGE_BUDGET):
+    blocks = []
+    group = None
     for line in config.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        while cells(line) > 74:
-            width = last_break = 0
-            for i, char in enumerate(line):
-                width += cells(char)
-                if width > 74:
-                    break
-                if char.isspace() or char in "，。！？；、,;.!?":
-                    last_break = i + 1
-            split = last_break if last_break >= i // 2 else i
-            pages.append(line[:split].rstrip())
-            line = line[split:].lstrip()
-        if line:
-            pages.append(line)
+        if line == "===":
+            if group is None:
+                group = []
+                blocks.append(group)
+            else:
+                group = None
+        elif group is None:
+            blocks.append(wrap_tip(line))
+        else:
+            group.extend(wrap_tip(line))
+
+    blocks = [block for block in blocks if block]
+    if page_budget is not None:
+        oversized = sum(len(block) > page_budget for block in blocks)
+        if oversized:
+            logging.getLogger(__name__).warning(
+                "Skipping %d complete tip block(s) larger than the %d-page budget.", oversized, page_budget)
+    random.shuffle(blocks)
+    pages = []
+    for block in blocks:
+        if page_budget is not None and len(pages) + len(block) > page_budget:
+            continue
+        pages.extend(block)
     return pages
+
+
+def read_tip_pages():
+    return tip_pages(Path(__file__).with_name("coldjokeconfig").read_text(encoding="utf-8-sig"))
 
 
 def loading_tips(tips, P):
@@ -179,9 +219,10 @@ def loading_tips(tips, P):
     return "".join(body) + "</g></svg>"
 
 
-def banner(data, P):
+def banner(data, P, tips=None):
     day = data["end"][:10]
-    tips = tip_pages(Path(__file__).with_name("coldjokeconfig").read_text(encoding="utf-8-sig"))
+    if tips is None:
+        tips = read_tip_pages()
     offset = 32 if tips else 0
     body = []
     if tips:
@@ -286,6 +327,7 @@ def banner(data, P):
         f"{OWNER}@github: ~ — zsh",
         f"Last login: {day}",
         css,
+        title_ink=P["terminal_title"],
     )
 
 
@@ -423,7 +465,7 @@ def skills_card(P):
         accent = P[tone]
         pbg = P[f"pill_{tone}_bg"]
         pbd = P[f"pill_{tone}_bd"]
-        body.append(tx(28, y, perm, 12, P["dim"]))
+        body.append(tx(28, y, perm, 12, P["dim"], f'class="perm" style="--delay:{row_i*.12:.2f}s"'))
         body.append(tx(114, y, dirname, 13.5, accent, 'class="bold"'))
         cx = 224
         for tag in tags:
@@ -439,6 +481,7 @@ def skills_card(P):
         body,
         "ls -la ~/skills",
         "TOOLKIT",
+        SKILL_CSS,
     )
 
 
@@ -628,7 +671,7 @@ def projects_card(P):
         pw = round(text_px(tag, 11) + 18)
         px = 830 - pw
         body.extend([
-            tx(28, y, branch, 13, P["dim"]),
+            tx(28, y, branch, 13, P["dim"], f'class="tree-guide" style="--delay:{i*.35:.2f}s;color:{accent}"'),
             tx(60, y, name + "/", 13.2, accent, 'class="bold"'),
             tx(236, y, shorten(summary, 66), 12.5, P["muted"]),
             box(px, y - 14.5, pw, 20, pbg, 4, pbd),
@@ -636,7 +679,7 @@ def projects_card(P):
         ])
     body_h = 70 + n * 30 - 6
     desc = "Featured projects: " + ", ".join(p[0] for p in FEATURED_PROJECTS)
-    return omz_card(P, "tree ~/projects --featured", desc, body_h, body, "tree -L 1 ~/projects --featured", "PROJECTS")
+    return omz_card(P, "tree ~/projects --featured", desc, body_h, body, "tree -L 1 ~/projects --featured", "PROJECTS", TREE_CSS)
 
 
 # ----------------------------------------------------------------- 5. CHALDEAS (FGO ZSH TUI)
@@ -652,7 +695,9 @@ def chaldeas_card(data, P):
         box(vx, vy, vw, vh, P["panel"], 8, P["border"]),
         f'<circle cx="{vx + 14}" cy="{vy + 16}" r="3" fill="{P["gold"]}"/>',
         tx(vx + 24, vy + 19.5, "SABER · ARTORIA", 10.5, P["gold"], 'class="bold"'),
-        f'<g transform="translate({vx + 36} {vy + 29}) scale(1.22)">' + artoria() + "</g>",
+        f'<defs><clipPath id="saber-window"><rect x="{vx+1}" y="{vy+1}" width="{vw-2}" height="{vh-2}" rx="7"/></clipPath></defs>',
+        f'<g clip-path="url(#saber-window)"><g transform="translate({vx + 12} {vy + 22}) scale(1.62)">'
+        + artoria() + "</g></g>",
     ]
 
     kx, vx_r = 258, 354
@@ -674,6 +719,7 @@ def chaldeas_card(data, P):
 
     body = [
         _omz_prompt_row(P, "~/chaldeas", "master", "fgo-fetch --profile", "chaldea-os"),
+        fate_background(P),
         *viewport,
         tx(kx, 76, "master", 13.5, P["cyan"], 'class="bold"'),
         f'<text x="{vx_r}" y="76" font-size="13.5">'
@@ -702,7 +748,7 @@ def chaldeas_card(data, P):
         tx(772, 218, "Live Demo ↗", 11.5, P["gold"], 'text-anchor="middle" class="bold"'),
     ]
     desc = f"{title}。最推 {profile['最推从者']}，御主 Lv.{profile['御主等级']}，五星从者 {profile['五星从者']} 骑。"
-    return omz_card(P, f"fgo-fetch · {title}", desc, 258, body, "fgo-fetch --profile", "FGO / TUI", GAME_MOTION)
+    return omz_card(P, f"fgo-fetch · {title}", desc, 258, body, "fgo-fetch --profile", "FGO / TUI", GAME_MOTION + FATE_CSS, title_ink=P["fgo_title"])
 
 
 # ----------------------------------------------------------------- 6. MINECRAFT (ZSH TUI)
@@ -793,6 +839,7 @@ def minecraft_card(P):
     vx, vy, vw, vh = 28, 56, 206, 188
     parts = [
         _omz_prompt_row(P, "~/minecraft", "1.21.1", "mc-fetch --modpack", "neoforge"),
+        forge_background(P),
         _game_ink(P),
         box(vx, vy, vw, vh, P["panel"], 8, P["border"]),
         f'<circle cx="{vx + 14}" cy="{vy + 16}" r="3" fill="{P["mint"]}"/>',
@@ -848,6 +895,8 @@ def minecraft_card(P):
         parts,
         "mc-fetch --modpack",
         "MC / TUI",
+        FORGE_CSS,
+        title_ink=P["mc_title"],
     )
 
 
@@ -932,8 +981,9 @@ def render_terminal(data, assets, write):
     term_dir.mkdir(parents=True, exist_ok=True)
     badge_dir.mkdir(parents=True, exist_ok=True)
 
+    tips = read_tip_pages()
     for mode, P in THEMES.items():
-        write(term_dir / f"banner-{mode}.svg", banner(data, P))
+        write(term_dir / f"banner-{mode}.svg", banner(data, P, tips))
         write(term_dir / f"neofetch-{mode}.svg", neofetch(data, P))
         write(term_dir / f"projects-{mode}.svg", projects_card(P))
         write(term_dir / f"skills-{mode}.svg", skills_card(P))
