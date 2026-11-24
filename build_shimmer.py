@@ -4,8 +4,18 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 
-def build(source, name_box):
-    base = Image.open(source).convert('RGB')
+def build(source, name_box, top):
+    original = Image.open(source).convert('RGB')
+    base = original.crop((0, top, original.width, original.height))
+    left, upper, right, lower = name_box
+    name_box = (left, upper-top, right, lower-top)
+    dest = source.with_name(source.stem.replace('zsh', 'wordmark')+'.png')
+    # Continue the tmux pane frame from the command strip above this image.
+    edge = '#425749'
+    base.paste(edge,(0,0,2,base.height))
+    base.paste(edge,(base.width-2,0,base.width,base.height))
+    base.paste(edge,(0,base.height-2,base.width,base.height))
+    base.save(dest)
     name = base.crop(name_box)
     width, height = name.size
     # Only the front face of the lettering exceeds this red-channel threshold.
@@ -36,11 +46,12 @@ def build(source, name_box):
         frame.paste(overlay.quantize(palette=palette, dither=Image.Dither.NONE), name_box[:2])
         frames.append(frame)
     frames.append(background)
-    background.save(source.with_suffix('.gif'), save_all=True, append_images=frames[1:],
-                    duration=[220] + [40] * 38 + [2540], loop=0, disposal=1, optimize=False)
+    intro = Image.blend(Image.new('RGB',base.size,'#101816'),base,.28).quantize(palette=palette,dither=Image.Dither.NONE)
+    intro.save(dest.with_suffix('.gif'), save_all=True, append_images=frames,
+               duration=[1050,180] + [40] * 38 + [6850], loop=0, disposal=1, optimize=False)
 
 
 if __name__ == '__main__':
     assets = Path(__file__).resolve().parent / 'assets'
-    build(assets / 'zsh.png', (52, 163, 1256, 335))
-    build(assets / 'zsh-mobile.png', (31, 148, 744, 251))
+    build(assets / 'zsh.png', (52, 163, 1256, 335), 155)
+    build(assets / 'zsh-mobile.png', (31, 148, 744, 251), 137)

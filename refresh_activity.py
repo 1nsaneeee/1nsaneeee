@@ -37,7 +37,8 @@ def snapshot():
             time=datetime.fromisoformat(row['commit']['author']['date'].replace('Z','+00:00')).astimezone(zone)
             if time>when or time.date()<start:continue
             sha=row['sha']
-            all_rows.setdefault(sha,dict(sha=sha,repo=slug,branch=repo['default_branch'],time=time.isoformat(),title=row['commit']['message'].splitlines()[0],url=row['html_url']))
+            parents = [parent['sha'] for parent in row.get('parents', ())]
+            all_rows.setdefault(sha,dict(sha=sha,repo=slug,branch=repo['default_branch'],parents=parents,time=time.isoformat(),title=row['commit']['message'].splitlines()[0],url=row['html_url']))
     return {'end':when.isoformat(),'start':start.isoformat(),'owned':len(repos),'scanned':total,'commits':sorted(all_rows.values(),key=lambda row:(row['time'],row['sha']),reverse=True)}
 palette=['#24362e','#3e7958','#5eac71','#97d588','#d7ed9f']
 
